@@ -106,7 +106,6 @@
         <div class="rank-card">
             <div class="rank-pct" id="rankRes">--</div>
             <div class="rank-sub" id="rankSub">--</div>
-            <div class="rank-sub" id="runRes">--</div>
         </div>
 
         <!-- Station Breakdown + Total -->
@@ -284,7 +283,6 @@ function runAnalysis() {
     // 2. UI 업데이트
     document.getElementById('rankRes').textContent = `Top ${clampedPct.toFixed(1)}%`;
     document.getElementById('rankSub').textContent = `~${Math.round(estRank)} / ${nParticipants} participants`;
-    document.getElementById('runRes').textContent = `Run Total: ${formatTimeLong(targetRun)} (${m}:${s.toString().padStart(2, '0')}/km)`;
 
     // 3. 스테이션별 예상 시간 계산
     const stationResults = [];
