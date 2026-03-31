@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyrox Predictor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, 'Pretendard', sans-serif; background-color: #111; color: #fff; padding: 20px; display: flex; justify-content: center; }
+        .container { max-width: 600px; width: 100%; }
+        h1 { text-align: center; color: #ff4757; font-size: 1.8rem; margin-bottom: 5px; letter-spacing: 2px; }
+        p.subtitle { text-align: center; color: #a4b0be; font-size: 0.85rem; margin-bottom: 25px; }
+
+        .card { background: #1e1e1e; padding: 20px; border-radius: 16px; margin-bottom: 16px; border: 1px solid #333; }
+        .card-title { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+        .division-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .division-btn { background: #111; border: 1px solid #444; color: #aaa; padding: 10px 6px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.2s; line-height: 1.3; }
+        .division-btn:hover { border-color: #ff4757; color: #fff; background: #2a1a1a; }
+        .division-btn.active { border-color: #ff4757; color: #fff; background: rgba(255,71,87,0.15); box-shadow: 0 0 12px rgba(255,71,87,0.2); }
+        .division-btn .btn-count { display: block; font-size: 0.65rem; color: #666; font-weight: 400; margin-top: 2px; }
+
+        .input-group { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 10px; }
+        input[type="number"] { background: #111; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 10px; width: 80px; text-align: center; font-size: 1.3rem; }
+        input[type="number"]:focus { outline: none; border-color: #ff4757; }
+        .unit { color: #888; font-size: 0.9rem; }
+
+        button#analyzeBtn { width: 100%; padding: 16px; background: #fff; color: #111; border: none; border-radius: 12px; cursor: pointer; font-size: 1.1rem; font-weight: bold; transition: all 0.2s; letter-spacing: 1px; margin-bottom: 24px; }
+        button#analyzeBtn:hover { background: #e0e0e0; transform: translateY(-1px); box-shadow: 0 4px 15px rgba(255,255,255,0.15); }
+        button#analyzeBtn:active { transform: translateY(0); }
+
+        #results { display: none; }
+
+        .rank-card { background: linear-gradient(135deg, #ff4757 0%, #c0392b 100%); padding: 24px; border-radius: 16px; text-align: center; margin-bottom: 16px; }
+        .rank-pct { font-size: 2.2rem; font-weight: 800; }
+        .rank-sub { font-size: 0.85rem; opacity: 0.85; margin-top: 6px; }
+
+        .chart-card { background: #1e1e1e; border-radius: 16px; padding: 16px; margin-bottom: 12px; border: 1px solid #333; }
+        .chart-wrap { position: relative; width: 100%; height: 200px; }
+        .chart-wrap canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
+        .chart-label { font-size: 0.8rem; color: #aaa; font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .chart-label .est-time { color: #3498db; font-weight: 700; }
+
+        .station-charts { display: flex; flex-direction: column; gap: 0; }
+
+        .breakdown-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2a2a2a; }
+        .breakdown-row:last-child { border-bottom: none; }
+        .breakdown-label { font-size: 0.85rem; color: #999; }
+        .breakdown-time { font-size: 0.95rem; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
+
+        .total-row { display: flex; justify-content: space-between; padding: 20px 4px; font-size: 1.4rem; font-weight: 800; color: #ff4757; border-top: 2px solid #ff4757; margin-top: 8px; }
+
+        .info-note { text-align: center; color: #555; font-size: 0.75rem; margin-top: 20px; line-height: 1.6; }
+        .loading { text-align: center; color: #888; padding: 40px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>HYROX PREDICTOR</h1>
+    <p class="subtitle">Pace-Based Performance Analysis</p>
+
+    <div class="card">
+        <div class="card-title">Division</div>
+        <div class="division-grid" id="divisionGrid">
+            <div class="loading">Loading data...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">8km Average Running Pace</div>
+        <div class="input-group">
+            <input type="number" id="pMin" value="5" min="1" max="15">
+            <span class="unit">min</span>
+            <input type="number" id="pSec" value="00">
+            <span class="unit">sec</span>
+        </div>
+    </div>
+
+    <button id="analyzeBtn" onclick="runAnalysis()">Analyze</button>
+
+    <div id="results">
+        <div class="rank-card">
+            <div class="rank-pct" id="rankRes">--</div>
+            <div class="rank-sub" id="rankSub">--</div>
+            <div class="rank-sub" id="runRes">--</div>
+        </div>
+
+        <!-- Station Breakdown + Total -->
+        <div class="card">
+            <div class="card-title">Station Breakdown</div>
+            <div id="stationSummary"></div>
+            <div class="total-row">
+                <span>Estimated Total</span>
+                <span id="finalRes">--</span>
+            </div>
+        </div>
+
+        <!-- Run Total chart -->
+        <div class="chart-card">
+            <div class="chart-label">
+                <span>Run Total</span>
+                <span class="est-time" id="runChartTime"></span>
+            </div>
+            <div class="chart-wrap"><canvas id="chart_run"></canvas></div>
+        </div>
+
+        <!-- Station charts will be injected here -->
+        <div class="station-charts" id="stationChartsContainer"></div>
+    </div>
+
+    <div class="info-note">
+        Data from Hyrox Season 8 results.
+    </div>
+</div>
+
+<script>
+// ============================================================
+// Constants
+// ============================================================
+const ALL_DIVISIONS = [
+    "PRO MEN", "PRO WOMEN", "PRO MEN DOUBLES",
+    "PRO WOMEN DOUBLES", "MEN", "WOMEN",
+    "MEN DOUBLES", "WOMEN DOUBLES", "MIXED"
+];
+
+const STATIONS = [
+    "1000m SkiErg", "50m Sled Push", "50m Sled Pull",
+    "80m Burpee Broad Jump", "1000m Row", "200m Farmers Carry",
+    "100m Sandbag Lunges", "Wall Balls", "Roxzone Time"
+];
+
+let scatterData = null;
+let fittedData = {};
+let selectedCategory = null;
+let charts = {};  // { 'run': Chart, 'station_name': Chart, ... }
+
+function polyEval(c, x) {
+    let result = 0;
+    for (let i = 0; i < c.length; i++) {
+        result += c[i] * Math.pow(x, c.length - 1 - i);
+    }
+    return result;
+}
+
+// ============================================================
+// Data processing
+// ============================================================
+function processScatterData(raw) {
+    for (const [catName, catRaw] of Object.entries(raw)) {
+        const runValues = catRaw.run;
+        const n = runValues.length;
+        if (!catRaw.coeffs || n < 11) continue;
+
+        fittedData[catName] = {
+            nParticipants: n,
+            runValues,
+            stationValues: catRaw.stations || {},
+            coeffs: catRaw.coeffs
+        };
+    }
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+function formatTime(s) {
+    if (s < 0) s = 0;
+    s = Math.round(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m ${sec.toString().padStart(2, '0')}s`;
+    return `${m}m ${sec.toString().padStart(2, '0')}s`;
+}
+
+function formatTimeLong(s) {
+    if (s < 0) s = 0;
+    s = Math.round(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}시간 ${m}분 ${sec.toString().padStart(2, '0')}초`;
+    return `${m}분 ${sec.toString().padStart(2, '0')}초`;
+}
+
+function findRankByTime(coefficients, targetTime, maxRank) {
+    let low = 1, high = maxRank;
+    for (let i = 0; i < 50; i++) {
+        const mid = (low + high) / 2;
+        if (polyEval(coefficients, mid) < targetTime) low = mid;
+        else high = mid;
+    }
+    return (low + high) / 2;
+}
+
+// ============================================================
+// UI
+// ============================================================
+function populateCategories() {
+    const grid = document.getElementById('divisionGrid');
+    grid.innerHTML = '';
+    for (const cat of ALL_DIVISIONS) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'division-btn';
+        btn.dataset.cat = cat;
+        const info = fittedData[cat];
+        btn.innerHTML = `${cat}<span class="btn-count">${info ? info.nParticipants + ' athletes' : ''}</span>`;
+        btn.addEventListener('click', () => selectDivision(btn, cat));
+        grid.appendChild(btn);
+    }
+}
+
+function selectDivision(btn, cat) {
+    if (!fittedData[cat]) return;
+    document.querySelectorAll('.division-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedCategory = cat;
+    document.getElementById('results').style.display = 'none';
+}
+
+function ensureStationCanvases() {
+    const container = document.getElementById('stationChartsContainer');
+    container.innerHTML = '';
+    for (const st of STATIONS) {
+        const key = st.replace(/\s+/g, '_');
+        const card = document.createElement('div');
+        card.className = 'chart-card';
+        card.innerHTML = `
+            <div class="chart-label">
+                <span>${st}</span>
+                <span class="est-time" id="label_${key}"></span>
+            </div>
+            <div class="chart-wrap"><canvas id="chart_${key}"></canvas></div>`;
+        container.appendChild(card);
+    }
+}
+
+function runAnalysis() {
+    const catName = selectedCategory;
+    if (!catName) return alert('Division을 선택해주세요.');
+    const catData = fittedData[catName];
+    if (!catData) return alert('선택한 카테고리의 데이터가 없습니다.');
+
+    const m = parseInt(document.getElementById('pMin').value) || 0;
+    const s = parseInt(document.getElementById('pSec').value) || 0;
+    const paceSeconds = m * 60 + s;
+    const targetRun = paceSeconds * 8;
+
+    const { coeffs, nParticipants, runValues, stationValues } = catData;
+
+    // 1. 순위 추정
+    const estRank = findRankByTime(coeffs.run, targetRun, nParticipants);
+    const pct = (estRank / nParticipants) * 100;
+    const clampedPct = Math.max(0, Math.min(100, pct));
+
+    // 2. UI 업데이트
+    document.getElementById('rankRes').textContent = `Top ${clampedPct.toFixed(1)}%`;
+    document.getElementById('rankSub').textContent = `~${Math.round(estRank)} / ${nParticipants} participants`;
+    document.getElementById('runRes').textContent = `Run Total: ${formatTimeLong(targetRun)} (${m}:${s.toString().padStart(2, '0')}/km)`;
+
+    // 3. 스테이션별 예상 시간 계산
+    const stationResults = [];
+    let totalStation = 0;
+    for (const st of STATIONS) {
+        if (!coeffs[st] || !stationValues[st]) continue;
+        const stN = stationValues[st].length;
+        const stRank = estRank * (stN / nParticipants);
+        const estTime = Math.max(0, polyEval(coeffs[st], stRank));
+        totalStation += estTime;
+        stationResults.push({ name: st, time: estTime, stN, stRank });
+    }
+
+    // 4. 최종 합계 (상단)
+    const totalTime = targetRun + totalStation;
+    document.getElementById('finalRes').textContent = formatTimeLong(totalTime);
+
+    // 5. Station Breakdown 리스트
+    let summaryHtml = `
+        <div class="breakdown-row">
+            <span class="breakdown-label">Run Total (8km)</span>
+            <span class="breakdown-time">${formatTime(targetRun)}</span>
+        </div>`;
+    for (const { name, time } of stationResults) {
+        summaryHtml += `
+        <div class="breakdown-row">
+            <span class="breakdown-label">${name}</span>
+            <span class="breakdown-time">${formatTime(time)}</span>
+        </div>`;
+    }
+    document.getElementById('stationSummary').innerHTML = summaryHtml;
+
+    // 6. Run Total 차트
+    ensureStationCanvases();
+    document.getElementById('runChartTime').textContent = formatTime(targetRun);
+    drawScatterChart('chart_run', 'Run Total', coeffs.run, runValues, nParticipants, estRank, targetRun);
+
+    // 7. 스테이션별 차트
+    for (const { name, time, stN, stRank } of stationResults) {
+        const key = name.replace(/\s+/g, '_');
+        document.getElementById(`label_${key}`).textContent = formatTime(time);
+        drawScatterChart(`chart_${key}`, name, coeffs[name], stationValues[name], stN, stRank, time);
+    }
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================================
+// Generic scatter chart
+// ============================================================
+function drawScatterChart(canvasId, label, coeffs, rawValues, nPoints, userRank, userTime) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    // Scatter points
+    const scatterPoints = rawValues.map((y, i) => ({ x: i + 1, y }));
+
+    // Y축 범위: scatter 데이터 + 사용자 위치 기준 tight fit
+    const allY = rawValues.concat([userTime]);
+    const yMin = Math.min(...allY);
+    const yMax = Math.max(...allY);
+    const yPad = (yMax - yMin) * 0.05;
+    const yLo = yMin - yPad;
+    const yHi = yMax + yPad;
+
+    // Trend line (y축 범위 밖은 제외)
+    const trendPoints = [];
+    const step = Math.max(1, Math.floor(nPoints / 200));
+    for (let x = 1; x <= nPoints; x += step) {
+        const y = polyEval(coeffs, x);
+        if (y >= yLo && y <= yHi) trendPoints.push({ x, y });
+    }
+
+    // Destroy previous chart on same canvas
+    if (charts[canvasId]) charts[canvasId].destroy();
+
+    const chartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Participants',
+                    data: scatterPoints,
+                    pointRadius: 2,
+                    pointBackgroundColor: 'rgba(255,255,255,0.2)',
+                    pointBorderColor: 'transparent',
+                    order: 2,
+                },
+                {
+                    label: 'Trend',
+                    data: trendPoints,
+                    showLine: true,
+                    borderColor: '#ff4757',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    order: 1,
+                },
+                {
+                    label: 'You',
+                    data: [{ x: userRank, y: userTime }],
+                    pointRadius: 8,
+                    pointBackgroundColor: '#3498db',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    order: 0,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(c) {
+                            return `Rank ~${Math.round(c.parsed.x)}, ${formatTime(c.parsed.y)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    min: 0, max: nPoints,
+                    ticks: { color: '#555', font: { size: 10 } },
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                    title: { display: false }
+                },
+                y: {
+                    min: yLo,
+                    max: yHi,
+                    ticks: { color: '#555', font: { size: 10 }, callback: v => formatTime(v) },
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                    title: { display: false }
+                }
+            },
+            animation: {
+                onComplete: function() {
+                    const ch = charts[canvasId];
+                    if (!ch) return;
+                    const area = ch.chartArea;
+                    const xS = ch.scales.x;
+                    const yS = ch.scales.y;
+                    const c = ch.ctx;
+                    const px = xS.getPixelForValue(userRank);
+                    const py = yS.getPixelForValue(userTime);
+
+                    c.save();
+                    c.setLineDash([4, 4]);
+                    c.strokeStyle = 'rgba(52,152,219,0.4)';
+                    c.lineWidth = 1;
+                    c.beginPath(); c.moveTo(px, area.top); c.lineTo(px, area.bottom); c.stroke();
+                    c.beginPath(); c.moveTo(area.left, py); c.lineTo(area.right, py); c.stroke();
+                    c.restore();
+                }
+            }
+        }
+    });
+
+    charts[canvasId] = chartInstance;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const secEl = document.getElementById('pSec');
+    let prevSec = parseInt(secEl.value) || 0;
+
+    secEl.addEventListener('input', () => {
+        let s = parseInt(secEl.value);
+        if (isNaN(s)) return;
+        if (s > 59) s = 0;
+        else if (s < 0) s = 59;
+        secEl.value = s;
+        prevSec = s;
+    });
+});
+
+// ============================================================
+// Init
+// ============================================================
+fetch('scatter_data.json')
+    .then(r => r.json())
+    .then(raw => {
+        scatterData = raw;
+        processScatterData(raw);
+        populateCategories();
+        const first = ALL_DIVISIONS.find(d => fittedData[d]);
+        if (first) {
+            const btn = document.querySelector(`.division-btn[data-cat="${first}"]`);
+            if (btn) selectDivision(btn, first);
+        }
+    })
+    .catch(err => {
+        document.getElementById('divisionGrid').innerHTML =
+            '<div class="loading" style="color:#ff4757">scatter_data.json 로드 실패. 같은 폴더에 파일이 있는지 확인해주세요.</div>';
+        console.error(err);
+    });
+</script>
+</body>
+</html>
