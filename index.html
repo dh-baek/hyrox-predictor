@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HYROX RACE ESTIMATOR</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, 'Pretendard', sans-serif; background-color: #111; color: #fff; padding: 20px; display: flex; justify-content: center; }
         .container { max-width: 600px; width: 100%; }
-        h1 { text-align: center; color: #ff4757; font-size: 1.8rem; margin-bottom: 5px; letter-spacing: 2px; }
+        h1 { text-align: center; color: #ff4757; font-size: 1.8rem; margin-bottom: 5px; letter-spacing: 2px; margin-top: 28px; }
         p.subtitle { text-align: center; color: #a4b0be; font-size: 0.85rem; margin-bottom: 25px; }
 
         .card { background: #1e1e1e; padding: 20px; border-radius: 16px; margin-bottom: 16px; border: 1px solid #333; }
-        .card-title { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .card-title { font-size: 0.8rem; color: #888; letter-spacing: 1px; margin-bottom: 12px; }
 
         .division-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .division-btn { background: #111; border: 1px solid #444; color: #aaa; padding: 10px 6px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.2s; line-height: 1.3; }
@@ -44,54 +45,137 @@
 
         .station-charts { display: flex; flex-direction: column; gap: 0; }
 
-        .breakdown-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2a2a2a; }
+        .breakdown-row { padding: 12px 0; border-bottom: 1px solid #2a2a2a; }
         .breakdown-row:last-child { border-bottom: none; }
+        .breakdown-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .breakdown-label { font-size: 0.85rem; color: #999; }
-        .breakdown-right { display: flex; align-items: center; gap: 10px; }
+        .breakdown-main { display: flex; align-items: center; gap: 10px; }
         .breakdown-pace { font-size: 0.75rem; color: #666; background: #1a1a1a; padding: 2px 8px; border-radius: 6px; }
-        .breakdown-time { font-size: 0.95rem; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
+        .breakdown-time { font-size: 0.95rem; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; cursor: pointer; border-bottom: 1px dashed #555; }
+        .breakdown-time:hover { color: #ff4757; }
+        .time-stepper { display: inline-flex; align-items: center; gap: 6px; }
+        .time-stepper button { background: #2a2a2a; border: 1px solid #444; color: #fff; width: 28px; height: 28px; border-radius: 6px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+        .time-stepper button:active { background: #ff4757; }
+        .time-stepper .stepper-time { font-size: 0.95rem; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; min-width: 60px; text-align: center; }
 
-        .total-row { display: flex; justify-content: space-between; padding: 20px 4px; font-size: 1.4rem; font-weight: 800; color: #ff4757; border-top: 2px solid #ff4757; margin-top: 8px; }
+        .range-bar-wrap { position: relative; height: 44px; margin-bottom: 4px; }
+        .range-bar-track { position: absolute; top: 23px; left: 0; right: 0; height: 4px; background: #2a2a2a; border-radius: 2px; }
+        .range-bar-fill { position: absolute; top: 23px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, #555, #ff4757); }
+        .range-bar-marker { position: absolute; top: 15px; width: 14px; height: 20px; background: #ff4757; border-radius: 4px; transform: translateX(-50%); box-shadow: 0 0 6px rgba(255,71,87,0.5); cursor: grab; touch-action: none; z-index: 2; }
+        .range-bar-marker:active { cursor: grabbing; background: #c0392b; }
+        .range-bar-marker::after { content: ''; position: absolute; top: 7px; left: 4px; width: 6px; height: 6px; border-left: 1px solid rgba(255,255,255,0.4); border-right: 1px solid rgba(255,255,255,0.4); }
+        .range-bar-est { position: absolute; top: 17px; width: 2px; height: 16px; background: rgba(255,255,255,0.3); transform: translateX(-50%); z-index: 1; }
+        .range-bar-est-label { position: absolute; top: 0; transform: translateX(-50%); font-size: 0.6rem; color: rgba(255,255,255,0.4); white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .range-bar-record { position: absolute; top: 21px; width: 8px; height: 8px; transform: translateX(-50%); z-index: 1; }
+        .range-bar-record.rec-min { border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid #3498db; top: 15px; }
+        .range-bar-record.rec-max { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e67e22; top: 27px; }
+        .range-bar-record-label { position: absolute; transform: translateX(-50%); font-size: 0.55rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .range-bar-record-label.rec-min-label { top: 5px; color: rgba(52,152,219,0.6); }
+        .range-bar-record-label.rec-max-label { top: 35px; color: rgba(230,126,34,0.6); }
+
+        .total-row { display: flex; justify-content: space-between; padding: 20px 4px; font-size: 1.4rem; font-weight: 800; color: #fff; border-top: 1px solid #333; margin-top: 8px; }
 
         .info-note { text-align: center; color: #555; font-size: 0.75rem; margin-top: 24px; line-height: 1.6; }
 
         .how-it-works { margin-bottom: 16px; }
         .how-it-works summary { color: #555; font-size: 0.75rem; cursor: pointer; text-align: center; padding: 0; letter-spacing: 1px; list-style: none; text-transform: uppercase; }
         .how-it-works summary::-webkit-details-marker { display: none; }
-        .how-steps { display: flex; flex-direction: column; gap: 0; margin-top: 12px; position: relative; padding-left: 20px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px 18px 16px 34px; }
+        .how-steps { display: flex; flex-direction: column; gap: 0; margin-top: 12px; position: relative; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px 18px 16px 34px; counter-reset: step; }
         .how-steps::before { content: ''; position: absolute; left: 20px; top: 20px; bottom: 20px; width: 1px; background: #333; }
-        .how-step { position: relative; padding: 0 0 14px 14px; font-size: 0.78rem; color: #888; line-height: 1.5; }
+        .how-step { position: relative; padding: 0 0 14px 14px; font-size: 0.78rem; color: #888; line-height: 1.5; counter-increment: step; }
         .how-step:last-child { padding-bottom: 0; }
-        .how-step::before { content: ''; position: absolute; left: -17px; top: 6px; width: 5px; height: 5px; background: #ff4757; border-radius: 50%; }
+        .how-step::before { content: counter(step); position: absolute; left: -22px; top: 1px; width: 16px; height: 16px; background: #ff4757; border-radius: 50%; font-size: 0.6rem; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; }
         .how-step strong { color: #bbb; font-weight: 600; }
+        .event-selectors { display: flex; flex-direction: column; gap: 8px; }
+        .event-selectors select { background: #111; border: 1px solid #444; color: #fff; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; width: 100%; appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
+        .event-selectors select:focus { outline: none; border-color: #ff4757; }
+        .multi-select { position: relative; }
+        .multi-select-btn { background: #111; border: 1px solid #444; color: #fff; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; width: 100%; cursor: pointer; text-align: left; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; }
+        .multi-select-btn:focus { outline: none; border-color: #ff4757; }
+        .multi-select-btn.open { border-color: #ff4757; border-radius: 10px 10px 0 0; }
+        .multi-select-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #111; border: 1px solid #ff4757; border-top: none; border-radius: 0 0 10px 10px; max-height: 240px; overflow-y: auto; z-index: 100; }
+        .multi-select-dropdown.open { display: block; }
+        .multi-select-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.82rem; color: #ccc; transition: background 0.15s; }
+        .multi-select-item:hover { background: #1e1e1e; }
+        .multi-select-item input[type="checkbox"] { accent-color: #ff4757; width: 14px; height: 14px; cursor: pointer; }
+        .multi-select-item.checked { color: #fff; }
+        .multi-select-all { border-bottom: 1px solid #2a2a2a; color: #888; font-weight: 600; }
+        .top5-row { display: flex; align-items: center; padding: 5px 0; font-size: 0.78rem; gap: 8px; }
+        .top5-rank { color: #ff4757; font-weight: 700; width: 18px; text-align: center; font-size: 0.75rem; }
+        .top5-time { color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 70px; }
+        .top5-name { color: #aaa; font-size: 0.75rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .top5-nat { color: #555; font-size: 0.65rem; }
+        .top5-event { color: #666; font-size: 0.7rem; white-space: nowrap; text-align: right; }
+        .event-status { text-align: center; font-size: 0.75rem; color: #666; margin-top: 10px; font-variant-numeric: tabular-nums; line-height: 1.5; }
+        .event-status .event-count { color: #ff4757; font-weight: 600; }
         .loading { text-align: center; color: #888; padding: 40px; font-size: 0.9rem; }
+        .lang-bar { position: absolute; top: -4px; right: 0; display: flex; gap: 6px; }
+        .lang-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; opacity: 0.4; transition: opacity 0.2s; padding: 2px; line-height: 1; }
+        .lang-btn:hover { opacity: 0.7; }
+        .lang-btn.active { opacity: 1; }
+        .container { position: relative; }
+        .save-img-btn { background: none; border: 1px solid #444; color: #888; padding: 4px 10px; border-radius: 8px; font-size: 0.65rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+        .save-img-btn:hover { border-color: #ff4757; color: #fff; }
+        .save-img-btn svg { width: 12px; height: 12px; }
+        .img-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .img-overlay img { max-width: 100%; max-height: 70vh; border-radius: 12px; }
+        .img-overlay .hint { color: #888; font-size: 0.8rem; margin-top: 16px; text-align: center; }
+        .img-overlay .close-btn { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #888; font-size: 1.8rem; cursor: pointer; line-height: 1; }
+        .img-overlay .share-btn { margin-top: 14px; background: #ff4757; color: #fff; border: none; padding: 12px 32px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+        .ad-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.88); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .ad-overlay .ad-label { font-size: 0.6rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .ad-overlay .ad-banner { max-width: 260px; max-height: 55vh; width: 100%; border-radius: 12px; overflow: hidden; cursor: pointer; }
+        .ad-overlay .ad-banner img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .ad-overlay .ad-placeholder { width: 300px; height: 250px; background: #1e1e1e; border: 1px dashed #444; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 0.8rem; }
+        .ad-overlay .ad-countdown { font-size: 0.75rem; color: #666; margin-top: 14px; }
+        .ad-overlay .ad-hint { font-size: 0.7rem; color: #555; margin-top: 6px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>HYROX RACE ESTIMATOR</h1>
+    <div class="lang-bar">
+        <button class="lang-btn active" data-lang="ko" title="한국어">🇰🇷</button>
+        <button class="lang-btn" data-lang="en" title="English">🇬🇧</button>
+        <button class="lang-btn" data-lang="ja" title="日本語">🇯🇵</button>
+        <button class="lang-btn" data-lang="zh" title="中文">🇨🇳</button>
+    </div>
+    <h1 id="mainTitle">HYROX RACE ESTIMATOR</h1>
     <p class="subtitle">Pace-Based Performance Analysis</p>
 
     <details class="how-it-works">
-        <summary>How it works</summary>
+        <summary>How to use</summary>
         <div class="how-steps">
-            <div class="how-step">2025 Seoul HYROX 전체 참가자의 실제 기록을 수집합니다.</div>
-            <div class="how-step">러닝 페이스로 디비전 내 상위 %를 추정합니다.</div>
-            <div class="how-step">같은 수준의 스테이션별 기록을 수학적으로 예측합니다.</div>
-            <div class="how-step">Run + Station을 합산하여 최종 완주 시간을 산출합니다.</div>
+            <div class="how-step">참고할 대회를 선택하세요. 여러 대회를 함께 선택할 수 있습니다.</div>
+            <div class="how-step">참가할 디비전을 선택하세요.</div>
+            <div class="how-step">나의 8km 평균 러닝 페이스를 입력하세요.</div>
+            <div class="how-step">분석하기를 누르면 예상 완주 시간과 스테이션별 기록을 확인할 수 있습니다.</div>
         </div>
     </details>
 
     <div class="card">
-        <div class="card-title">Division</div>
+        <div class="card-title" id="eventSourceLabel">1. Select events to reference</div>
+        <div class="event-selectors">
+            <select id="continentSelect"></select>
+            <select id="countrySelect"></select>
+            <div class="multi-select" id="eventMultiSelect">
+                <button type="button" class="multi-select-btn" id="eventSelectBtn"></button>
+                <div class="multi-select-dropdown" id="eventDropdown"></div>
+            </div>
+        </div>
+        <div class="event-status" id="eventStatus"></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">2. Choose your race division</div>
         <div class="division-grid" id="divisionGrid">
             <div class="loading">Loading data...</div>
         </div>
     </div>
 
     <div class="card">
-        <div class="card-title">8km Average Running Pace</div>
+        <div class="card-title">3. Enter your target running pace</div>
         <div class="input-group">
             <input type="number" id="pMin" value="5" min="1" max="15">
             <span class="unit">min</span>
@@ -100,7 +184,15 @@
         </div>
     </div>
 
-    <button id="analyzeBtn" onclick="runAnalysis()">Analyze</button>
+    <button id="analyzeBtn" onclick="runAnalysis()">ANALYZE</button>
+
+    <div class="card" id="top5Container" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;">TOP 5 Records</span>
+            <select id="ageGroupFilter" style="background:#111;border:1px solid #333;color:#888;padding:3px 8px;border-radius:6px;font-size:0.7rem;"></select>
+        </div>
+        <div id="top5List"></div>
+    </div>
 
     <div id="results">
         <div class="rank-card">
@@ -110,10 +202,20 @@
 
         <!-- Station Breakdown + Total -->
         <div class="card">
-            <div class="card-title">Station Breakdown</div>
+            <div class="card-title" id="breakdownTitle" style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="breakdownLabel">Station Breakdown</span>
+                <span style="font-size:0.6rem;text-transform:none;letter-spacing:0;display:flex;gap:10px;align-items:center;">
+                    <span style="color:rgba(52,152,219,0.6);display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:5px solid #3498db;"></span><span id="legendBest">Best</span></span>
+                    <span style="color:rgba(230,126,34,0.6);display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:5px solid #e67e22;"></span><span id="legendSlowest">Slowest</span></span>
+                    <button class="save-img-btn" onclick="showAdThenSave()" id="saveImgBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span id="saveImgLabel">Save</span>
+                    </button>
+                </span>
+            </div>
             <div id="stationSummary"></div>
             <div class="total-row">
-                <span>Estimated Total</span>
+                <span id="totalLabel">Estimated Total</span>
                 <span id="finalRes">--</span>
             </div>
         </div>
@@ -121,7 +223,7 @@
         <!-- Run Total chart -->
         <div class="chart-card">
             <div class="chart-label">
-                <span>Run Total</span>
+                <span id="runChartLabel">Run Total</span>
                 <span class="est-time" id="runChartTime"></span>
             </div>
             <div class="chart-wrap"><canvas id="chart_run"></canvas></div>
@@ -136,17 +238,235 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="#888" stroke="none"/></svg>
             @bbaekddong
         </a>
+        <div id="visitorStats" style="margin-top:8px;font-size:0.7rem;color:#444;"></div>
     </div>
 </div>
 
 <script>
+// ============================================================
+// i18n
+// ============================================================
+const LANGS = {
+    ko: {
+        title: 'HYROX 완주 시간 예측기',
+        subtitle: '페이스 기반 퍼포먼스 분석',
+        howItWorks: '사용법',
+        howSteps: [
+            '참고할 대회를 선택하세요. 여러 대회를 함께 선택할 수 있습니다.',
+            '참가할 디비전을 선택하세요.',
+            '나의 8km 평균 러닝 페이스를 입력하세요.',
+            '분석하기를 누르면 예상 완주 시간과 스테이션별 기록을 확인할 수 있습니다.'
+        ],
+        division: '2. 참가할 디비전을 선택해주세요',
+        athletes: '명', teams: '팀',
+        pace: '3. 목표 평균 러닝 페이스를 입력해주세요',
+        min: '분', sec: '초',
+        rankFormat: '당신은 상위 {pct}% 입니다',
+        analyzing: '데이터 분석 중...',
+        analyzingHint: '잠시만 기다려주세요',
+        analyze: '분석하기',
+        stationBreakdown: '스테이션 상세',
+        best: '선택 대회 최고', slowest: '선택 대회 최저',
+        totalEntries: '개 기록',
+        runTotal: '러닝 합계 (8km)',
+        runTotalChart: '러닝 합계',
+        estimatedTotal: '예상 완주 시간',
+        loading: '데이터 로딩 중...',
+        loadFail: '데이터 로드에 실패했습니다. 파일을 확인해주세요.',
+        alertDiv: '디비전을 선택해주세요.',
+        alertNoData: '선택한 카테고리의 데이터가 없습니다.',
+        participants: '명 중', participantsTeam: '팀 중',
+        h: '시간', m: '분', s: '초',
+        hLong: '시간 ', mLong: '분 ', sLong: '초',
+        saveImage: '저장',
+        longPressHint: '이미지를 꾹 눌러서 사진에 저장하세요',
+        eventSource: '1. 참고할 대회를 선택해주세요',
+        allContinents: '전체 대륙',
+        allCountries: '전체 국가',
+        allEvents: '전체 대회',
+        loadingEvents: '로딩 중...',
+        noEventData: '선택한 대회의 데이터가 없습니다.',
+        events: '개 대회',
+    },
+    en: {
+        title: 'HYROX RACE ESTIMATOR',
+        subtitle: 'Pace-Based Performance Analysis',
+        howItWorks: 'How to use',
+        howSteps: [
+            'Select the events to reference. You can select multiple events.',
+            'Choose your race division.',
+            'Enter your 8km average running pace.',
+            'Press Analyze to see your estimated finish time and station breakdown.'
+        ],
+        division: '2. Choose your race division',
+        athletes: 'athletes', teams: 'teams',
+        pace: '3. Enter your target running pace',
+        min: 'min', sec: 'sec',
+        rankFormat: 'You are in the Top {pct}%',
+        analyzing: 'Analyzing data...',
+        analyzingHint: 'Please wait a moment',
+        analyze: 'ANALYZE',
+        stationBreakdown: 'Station Breakdown',
+        best: 'Selected Best', slowest: 'Selected Slowest',
+        totalEntries: 'entries',
+        runTotal: 'Run Total (8km)',
+        runTotalChart: 'Run Total',
+        estimatedTotal: 'Estimated Total',
+        loading: 'Loading data...',
+        loadFail: 'Failed to load scatter_data.json. Please check the file exists.',
+        alertDiv: 'Please select a division.',
+        alertNoData: 'No data available for the selected category.',
+        participants: 'participants', participantsTeam: 'teams',
+        h: 'h', m: 'm', s: 's',
+        hLong: 'hr', mLong: 'min', sLong: 'sec',
+        saveImage: 'Save',
+        longPressHint: 'Long press the image to save to Photos',
+        eventSource: '1. Select events to reference',
+        allContinents: 'ALL CONTINENTS',
+        allCountries: 'ALL COUNTRIES',
+        allEvents: 'ALL EVENTS',
+        loadingEvents: 'Loading data...',
+        noEventData: 'No data available for selected events.',
+        events: 'events',
+    },
+    ja: {
+        title: 'HYROX 完走タイム予測',
+        subtitle: 'ペースベースのパフォーマンス分析',
+        howItWorks: '使い方',
+        howSteps: [
+            '参考にする大会を選択します。複数選択も可能です。',
+            '参加するディビジョンを選択します。',
+            '8km平均ランニングペースを入力します。',
+            '分析ボタンを押すと、予想完走タイムとステーション別タイムが表示されます。'
+        ],
+        division: '2. ディビジョンを選択してください',
+        athletes: '名', teams: 'チーム',
+        pace: '3. 目標の平均ランニングペースを入力',
+        min: '分', sec: '秒',
+        rankFormat: 'あなたは上位 {pct}% です',
+        analyzing: 'データ分析中...',
+        analyzingHint: '少々お待ちください',
+        analyze: '分析する',
+        stationBreakdown: 'ステーション内訳',
+        best: '選択大会 最速', slowest: '選択大会 最遅',
+        totalEntries: '件の記録',
+        runTotal: 'ラン合計 (8km)',
+        runTotalChart: 'ラン合計',
+        estimatedTotal: '予想合計タイム',
+        loading: 'データ読み込み中...',
+        loadFail: 'scatter_data.jsonの読み込みに失敗しました。ファイルを確認してください。',
+        alertDiv: 'ディビジョンを選択してください。',
+        alertNoData: '選択したカテゴリのデータがありません。',
+        participants: '名中', participantsTeam: 'チーム中',
+        h: '時間', m: '分', s: '秒',
+        hLong: '時間', mLong: '分', sLong: '秒',
+        saveImage: '保存',
+        longPressHint: '画像を長押しして写真に保存してください',
+        eventSource: '1. 参考にする大会を選択',
+        allContinents: '全大陸',
+        allCountries: '全国',
+        allEvents: '全大会',
+        loadingEvents: 'Loading...',
+        noEventData: '選択した大会のデータがありません。',
+        events: 'events',
+    },
+    zh: {
+        title: 'HYROX 完赛时间预测',
+        subtitle: '基于配速的成绩预测分析',
+        howItWorks: '使用方法',
+        howSteps: [
+            '选择要参考的赛事，可以同时选择多个赛事。',
+            '选择您的参赛组别。',
+            '输入您的8公里平均跑步配速。',
+            '点击分析，查看预估完赛时间和各站用时。'
+        ],
+        division: '2. 请选择参赛组别',
+        athletes: '名选手', teams: '支队伍',
+        pace: '3. 请输入目标平均跑步配速',
+        min: '分', sec: '秒',
+        rankFormat: '您位于前 {pct}%',
+        analyzing: '数据分析中...',
+        analyzingHint: '请稍等',
+        analyze: '开始分析',
+        stationBreakdown: '各站明细',
+        best: '所选赛事最快', slowest: '所选赛事最慢',
+
+        totalEntries: '条记录',
+        runTotal: '跑步总计 (8km)',
+        runTotalChart: '跑步总计',
+        estimatedTotal: '预估总用时',
+        loading: '正在加载数据...',
+        loadFail: '加载 scatter_data.json 失败，请确认文件是否存在。',
+        alertDiv: '请先选择组别。',
+        alertNoData: '所选类别暂无数据。',
+        participants: '名选手中', participantsTeam: '支队伍中',
+        h: '小时', m: '分', s: '秒',
+        hLong: '小时', mLong: '分', sLong: '秒',
+        saveImage: '保存',
+        longPressHint: '长按图片保存到相册',
+        eventSource: '1. 请选择要参考的赛事',
+        allContinents: '全部大洲',
+        allCountries: '全部国家',
+        allEvents: '全部赛事',
+        loadingEvents: 'Loading...',
+        noEventData: '所选赛事暂无数据。',
+        events: 'events',
+    }
+};
+
+let currentLang = 'ko';
+
+function t(key) { return LANGS[currentLang][key] || LANGS.en[key] || key; }
+
+function applyLang(lang) {
+    currentLang = lang;
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+
+    // Static UI
+    document.getElementById('mainTitle').textContent = t('title');
+    document.querySelector('p.subtitle').textContent = t('subtitle');
+    document.querySelector('.how-it-works summary').textContent = t('howItWorks');
+    const steps = document.querySelectorAll('.how-step');
+    t('howSteps').forEach((txt, i) => { if (steps[i]) steps[i].textContent = txt; });
+
+    document.getElementById('eventSourceLabel').textContent = t('eventSource');
+    const prevContinent = document.getElementById('continentSelect').value;
+    const prevCountry = document.getElementById('countrySelect').value;
+    populateContinentSelect();
+    document.getElementById('continentSelect').value = prevContinent;
+    populateCountrySelect();
+    document.getElementById('countrySelect').value = prevCountry;
+    populateEventSelect();
+    onEventSelectionChange();
+
+    const cardTitles = document.querySelectorAll('.card-title');
+    // cardTitles[0] = Event Source, cardTitles[1] = Division, cardTitles[2] = Pace, cardTitles[3] = Station Breakdown (if results visible)
+    if (cardTitles[1]) cardTitles[1].textContent = t('division');
+    if (cardTitles[2]) cardTitles[2].textContent = t('pace');
+
+    document.querySelectorAll('.unit').forEach((el, i) => el.textContent = i === 0 ? t('min') : t('sec'));
+    document.getElementById('analyzeBtn').textContent = t('analyze');
+    document.getElementById('saveImgLabel').textContent = t('saveImage');
+
+    // Re-populate division buttons with translated "athletes"
+    if (Object.keys(fittedData).length) populateCategories();
+
+    // Re-run analysis if results are visible
+    if (document.getElementById('results').style.display === 'block') runAnalysis();
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyLang(btn.dataset.lang));
+});
+
 // ============================================================
 // Constants
 // ============================================================
 const ALL_DIVISIONS = [
     "PRO MEN", "PRO WOMEN", "PRO MEN DOUBLES",
     "PRO WOMEN DOUBLES", "MEN", "WOMEN",
-    "MEN DOUBLES", "WOMEN DOUBLES", "MIXED"
+    "MEN DOUBLES", "WOMEN DOUBLES", "MIXED",
+    "ADAPTIVE MEN", "ADAPTIVE WOMEN"
 ];
 
 const STATIONS = [
@@ -155,40 +475,714 @@ const STATIONS = [
     "100m Sandbag Lunges", "Wall Balls", "Roxzone Time"
 ];
 
-let scatterData = null;
+// ============================================================
+// Event Map
+// ============================================================
+const EVENT_MAP = {
+    "2024 BEIJING":         { continent: "ASIA", country: "CN" },
+    "2024 HONG KONG":       { continent: "ASIA", country: "HK" },
+    "2024 INCHEON":         { continent: "ASIA", country: "KR" },
+    "2024 SINGAPORE":       { continent: "ASIA", country: "SG" },
+    "2024 SINGAPORE NATIONAL STADIUM": { continent: "ASIA", country: "SG" },
+    "2025 BANGKOK":         { continent: "ASIA", country: "TH" },
+    "2025 INCHEON":         { continent: "ASIA", country: "KR" },
+    "2025 TAIPEI":          { continent: "ASIA", country: "TW" },
+    "2025 BEIJING":         { continent: "ASIA", country: "CN" },
+    "2025 DELHI":           { continent: "ASIA", country: "IN" },
+    "2025 HONG KONG":       { continent: "ASIA", country: "HK" },
+    "2025 MUMBAI":          { continent: "ASIA", country: "IN" },
+    "2025 SEOUL":           { continent: "ASIA", country: "KR" },
+    "2025 SHANGHAI":        { continent: "ASIA", country: "CN" },
+    "2025 SHENZHEN":        { continent: "ASIA", country: "CN" },
+    "2025 SINGAPORE EXPO":  { continent: "ASIA", country: "SG" },
+    "2025 YOKOHAMA":        { continent: "ASIA", country: "JP" },
+    "2026 BANGKOK":         { continent: "ASIA", country: "TH" },
+    "2026 BEIJING":         { continent: "ASIA", country: "CN" },
+    "2026 OSAKA":           { continent: "ASIA", country: "JP" },
+    "2026 TAIPEI":          { continent: "ASIA", country: "TW" },
+    "2026 SINGAPORE":       { continent: "ASIA", country: "SG" },
+    "2024 MELBOURNE":       { continent: "OCEANIA", country: "AU" },
+    "2024 PERTH":           { continent: "OCEANIA", country: "AU" },
+    "2024 BRISBANE":        { continent: "OCEANIA", country: "AU" },
+    "2024 SYDNEY":          { continent: "OCEANIA", country: "AU" },
+    "2025 AUCKLAND":        { continent: "OCEANIA", country: "NZ" },
+    "2025 BRISBANE":        { continent: "OCEANIA", country: "AU" },
+    "2025 MELBOURNE":       { continent: "OCEANIA", country: "AU" },
+    "2025 PERTH":           { continent: "OCEANIA", country: "AU" },
+    "2025 SYDNEY":          { continent: "OCEANIA", country: "AU" },
+    "2026 AUCKLAND":        { continent: "OCEANIA", country: "NZ" },
+    "2024 AMSTERDAM":       { continent: "EUROPE", country: "NL" },
+    "2024 BIRMINGHAM":      { continent: "EUROPE", country: "GB" },
+    "2024 DUBLIN":          { continent: "EUROPE", country: "IE" },
+    "2024 FRANKFURT":       { continent: "EUROPE", country: "DE" },
+    "2024 HAMBURG":         { continent: "EUROPE", country: "DE" },
+    "2024 LONDON":          { continent: "EUROPE", country: "GB" },
+    "2024 MADRID":          { continent: "EUROPE", country: "ES" },
+    "2024 MANCHESTER":      { continent: "EUROPE", country: "GB" },
+    "2024 MARSEILLE":       { continent: "EUROPE", country: "FR" },
+    "2024 MILAN":           { continent: "EUROPE", country: "IT" },
+    "2024 NICE":            { continent: "EUROPE", country: "FR" },
+    "2024 PARIS":           { continent: "EUROPE", country: "FR" },
+    "2024 POZNAN":          { continent: "EUROPE", country: "PL" },
+    "2024 STOCKHOLM":       { continent: "EUROPE", country: "SE" },
+    "2024 STUTTGART":       { continent: "EUROPE", country: "DE" },
+    "2025 BARCELONA":       { continent: "EUROPE", country: "ES" },
+    "2025 BELGIUM":         { continent: "EUROPE", country: "BE" },
+    "2025 BERLIN":          { continent: "EUROPE", country: "DE" },
+    "2025 BILBAO":          { continent: "EUROPE", country: "ES" },
+    "2025 CARDIFF":         { continent: "EUROPE", country: "GB" },
+    "2025 COLOGNE":         { continent: "EUROPE", country: "DE" },
+    "2025 COPENHAGEN":      { continent: "EUROPE", country: "DK" },
+    "2025 GLASGOW":         { continent: "EUROPE", country: "GB" },
+    "2025 HEERENVEEN":      { continent: "EUROPE", country: "NL" },
+    "2025 KARLSRUHE":       { continent: "EUROPE", country: "DE" },
+    "2025 KATOWICE":        { continent: "EUROPE", country: "PL" },
+    "2025 LONDON":          { continent: "EUROPE", country: "GB" },
+    "2025 MALAGA":          { continent: "EUROPE", country: "ES" },
+    "2025 MANCHESTER":      { continent: "EUROPE", country: "GB" },
+    "2025 PARIS 1":         { continent: "EUROPE", country: "FR" },
+    "2025 RIGA":            { continent: "EUROPE", country: "LV" },
+    "2025 RIMINI":          { continent: "EUROPE", country: "IT" },
+    "2025 ROTTERDAM":       { continent: "EUROPE", country: "NL" },
+    "2025 TOULOUSE":        { continent: "EUROPE", country: "FR" },
+    "2025 VIENNA S7":       { continent: "EUROPE", country: "AT" },
+    "2025 WARSAW":          { continent: "EUROPE", country: "PL" },
+    "2025 BIRMINGHAM":      { continent: "EUROPE", country: "GB" },
+    "2025 BORDEAUX":        { continent: "EUROPE", country: "FR" },
+    "2025 DUBLIN":          { continent: "EUROPE", country: "IE" },
+    "2025 FRANKFURT":       { continent: "EUROPE", country: "DE" },
+    "2025 GDANSK":          { continent: "EUROPE", country: "PL" },
+    "2025 GENT":            { continent: "EUROPE", country: "BE" },
+    "2025 GENEVA":          { continent: "EUROPE", country: "CH" },
+    "2025 HAMBURG":         { continent: "EUROPE", country: "DE" },
+    "2025 LONDON EXCEL":    { continent: "EUROPE", country: "GB" },
+    "2025 MAASTRICHT":      { continent: "EUROPE", country: "NL" },
+    "2025 MADRID":          { continent: "EUROPE", country: "ES" },
+    "2025 OSLO":            { continent: "EUROPE", country: "NO" },
+    "2025 PARIS":           { continent: "EUROPE", country: "FR" },
+    "2025 POZNAN":          { continent: "EUROPE", country: "PL" },
+    "2025 ROME":            { continent: "EUROPE", country: "IT" },
+    "2025 STOCKHOLM":       { continent: "EUROPE", country: "SE" },
+    "2025 STUTTGART":       { continent: "EUROPE", country: "DE" },
+    "2025 UTRECHT":         { continent: "EUROPE", country: "NL" },
+    "2025 VALENCIA":        { continent: "EUROPE", country: "ES" },
+    "2025 VERONA":          { continent: "EUROPE", country: "IT" },
+    "2026 AMSTERDAM":       { continent: "EUROPE", country: "NL" },
+    "2026 BILBAO":          { continent: "EUROPE", country: "ES" },
+    "2026 COPENHAGEN":      { continent: "EUROPE", country: "DK" },
+    "2026 GLASGOW":         { continent: "EUROPE", country: "GB" },
+    "2026 ISTANBUL":        { continent: "EUROPE", country: "TR" },
+    "2026 KATOWICE":        { continent: "EUROPE", country: "PL" },
+    "2026 LONDON OLYMPIA":  { continent: "EUROPE", country: "GB" },
+    "2026 MANCHESTER":      { continent: "EUROPE", country: "GB" },
+    "2026 MECHELEN":        { continent: "EUROPE", country: "BE" },
+    "2026 NICE":            { continent: "EUROPE", country: "FR" },
+    "2026 TOULOUSE":        { continent: "EUROPE", country: "FR" },
+    "2026 TURIN":           { continent: "EUROPE", country: "IT" },
+    "2026 VIENNA":          { continent: "EUROPE", country: "AT" },
+    "2024 ANAHEIM":         { continent: "NORTH AMERICA", country: "US" },
+    "2024 CHICAGO NAVY PIER": { continent: "NORTH AMERICA", country: "US" },
+    "2024 DALLAS":          { continent: "NORTH AMERICA", country: "US" },
+    "2024 TORONTO":         { continent: "NORTH AMERICA", country: "CA" },
+    "2025 HOUSTON":         { continent: "NORTH AMERICA", country: "US" },
+    "2025 LAS VEGAS":       { continent: "NORTH AMERICA", country: "US" },
+    "2025 MIAMI BEACH":     { continent: "NORTH AMERICA", country: "US" },
+    "2025 NEW YORK":        { continent: "NORTH AMERICA", country: "US" },
+    "2025 ACAPULCO":        { continent: "NORTH AMERICA", country: "MX" },
+    "2025 ANAHEIM":         { continent: "NORTH AMERICA", country: "US" },
+    "2025 ATLANTA":         { continent: "NORTH AMERICA", country: "US" },
+    "2025 BOSTON":           { continent: "NORTH AMERICA", country: "US" },
+    "2025 CHICAGO":         { continent: "NORTH AMERICA", country: "US" },
+    "2025 DALLAS":          { continent: "NORTH AMERICA", country: "US" },
+    "2025 MEXICO CITY":     { continent: "NORTH AMERICA", country: "MX" },
+    "2025 TORONTO":         { continent: "NORTH AMERICA", country: "CA" },
+    "2025 VANCOUVER":       { continent: "NORTH AMERICA", country: "CA" },
+    "2026 CANCUN":          { continent: "NORTH AMERICA", country: "MX" },
+    "2026 HOUSTON":         { continent: "NORTH AMERICA", country: "US" },
+    "2026 LAS VEGAS":       { continent: "NORTH AMERICA", country: "US" },
+    "2026 PHOENIX":         { continent: "NORTH AMERICA", country: "US" },
+    "2024 CIUDAD DE MEXICO": { continent: "LATIN AMERICA", country: "MX" },
+    "2025 GUADALAJARA":     { continent: "LATIN AMERICA", country: "MX" },
+    "2025 MONTERREY":       { continent: "LATIN AMERICA", country: "MX" },
+    "2025 RIO DE JANEIRO":  { continent: "LATIN AMERICA", country: "BR" },
+    "2025 SAO PAULO":       { continent: "LATIN AMERICA", country: "BR" },
+    "2026 FORTALEZA":       { continent: "LATIN AMERICA", country: "BR" },
+    "2026 GUADALAJARA":     { continent: "LATIN AMERICA", country: "MX" },
+    "2025 SHARJAH":         { continent: "MIDDLE EAST", country: "AE" },
+    "2025 ABU DHABI":       { continent: "MIDDLE EAST", country: "AE" },
+    "2024 CAPE TOWN":       { continent: "AFRICA", country: "ZA" },
+    "2025 JOHANNESBURG I":  { continent: "AFRICA", country: "ZA" },
+    "2025 CAPE TOWN":       { continent: "AFRICA", country: "ZA" },
+    "2025 JOHANNESBURG":    { continent: "AFRICA", country: "ZA" },
+};
+
+const CONTINENT_ORDER = ["ASIA", "OCEANIA", "EUROPE", "NORTH AMERICA", "LATIN AMERICA", "MIDDLE EAST", "AFRICA"];
+
+const COUNTRY_NAMES_I18N = {
+    en: {
+        CN: "CHINA", HK: "HONG KONG", KR: "KOREA", SG: "SINGAPORE", TH: "THAILAND",
+        TW: "TAIWAN", IN: "INDIA", JP: "JAPAN", AU: "AUSTRALIA", NZ: "NEW ZEALAND",
+        NL: "NETHERLANDS", GB: "UNITED KINGDOM", IE: "IRELAND", DE: "GERMANY",
+        ES: "SPAIN", FR: "FRANCE", IT: "ITALY", PL: "POLAND", SE: "SWEDEN",
+        BE: "BELGIUM", DK: "DENMARK", LV: "LATVIA", AT: "AUSTRIA", CH: "SWITZERLAND",
+        NO: "NORWAY", TR: "TURKEY", US: "UNITED STATES", CA: "CANADA", MX: "MEXICO",
+        BR: "BRAZIL", AE: "UAE", ZA: "SOUTH AFRICA",
+    },
+    ko: {
+        CN: "중국", HK: "홍콩", KR: "한국", SG: "싱가포르", TH: "태국",
+        TW: "대만", IN: "인도", JP: "일본", AU: "호주", NZ: "뉴질랜드",
+        NL: "네덜란드", GB: "영국", IE: "아일랜드", DE: "독일",
+        ES: "스페인", FR: "프랑스", IT: "이탈리아", PL: "폴란드", SE: "스웨덴",
+        BE: "벨기에", DK: "덴마크", LV: "라트비아", AT: "오스트리아", CH: "스위스",
+        NO: "노르웨이", TR: "터키", US: "미국", CA: "캐나다", MX: "멕시코",
+        BR: "브라질", AE: "UAE", ZA: "남아공",
+    },
+    ja: {
+        CN: "中国", HK: "香港", KR: "韓国", SG: "シンガポール", TH: "タイ",
+        TW: "台湾", IN: "インド", JP: "日本", AU: "オーストラリア", NZ: "ニュージーランド",
+        NL: "オランダ", GB: "イギリス", IE: "アイルランド", DE: "ドイツ",
+        ES: "スペイン", FR: "フランス", IT: "イタリア", PL: "ポーランド", SE: "スウェーデン",
+        BE: "ベルギー", DK: "デンマーク", LV: "ラトビア", AT: "オーストリア", CH: "スイス",
+        NO: "ノルウェー", TR: "トルコ", US: "アメリカ", CA: "カナダ", MX: "メキシコ",
+        BR: "ブラジル", AE: "UAE", ZA: "南アフリカ",
+    },
+    zh: {
+        CN: "中国", HK: "香港", KR: "韩国", SG: "新加坡", TH: "泰国",
+        TW: "台湾", IN: "印度", JP: "日本", AU: "澳大利亚", NZ: "新西兰",
+        NL: "荷兰", GB: "英国", IE: "爱尔兰", DE: "德国",
+        ES: "西班牙", FR: "法国", IT: "意大利", PL: "波兰", SE: "瑞典",
+        BE: "比利时", DK: "丹麦", LV: "拉脱维亚", AT: "奥地利", CH: "瑞士",
+        NO: "挪威", TR: "土耳其", US: "美国", CA: "加拿大", MX: "墨西哥",
+        BR: "巴西", AE: "UAE", ZA: "南非",
+    },
+};
+
+const CONTINENT_NAMES_I18N = {
+    en: { "ASIA": "ASIA", "OCEANIA": "OCEANIA", "EUROPE": "EUROPE", "NORTH AMERICA": "NORTH AMERICA", "LATIN AMERICA": "LATIN AMERICA", "MIDDLE EAST": "MIDDLE EAST", "AFRICA": "AFRICA" },
+    ko: { "ASIA": "아시아", "OCEANIA": "오세아니아", "EUROPE": "유럽", "NORTH AMERICA": "북미", "LATIN AMERICA": "중남미", "MIDDLE EAST": "중동", "AFRICA": "아프리카" },
+    ja: { "ASIA": "アジア", "OCEANIA": "オセアニア", "EUROPE": "ヨーロッパ", "NORTH AMERICA": "北米", "LATIN AMERICA": "中南米", "MIDDLE EAST": "中東", "AFRICA": "アフリカ" },
+    zh: { "ASIA": "亚洲", "OCEANIA": "大洋洲", "EUROPE": "欧洲", "NORTH AMERICA": "北美", "LATIN AMERICA": "拉丁美洲", "MIDDLE EAST": "中东", "AFRICA": "非洲" },
+};
+
+function countryName(code) {
+    return (COUNTRY_NAMES_I18N[currentLang] || COUNTRY_NAMES_I18N.en)[code] || code;
+}
+
+function continentName(key) {
+    return (CONTINENT_NAMES_I18N[currentLang] || CONTINENT_NAMES_I18N.en)[key] || key;
+}
+
+const POLY_DEGREE = 9;
 let fittedData = {};
 let selectedCategory = null;
-let charts = {};  // { 'run': Chart, 'station_name': Chart, ... }
+let charts = {};
+let lastTargetRun = 0;
+let stationCustomTimes = {};
+let eventDataCache = {};  // { eventName: rawJSON }
+let selectedEvents = [];  // list of event names currently active
 
+// ============================================================
+// Polynomial evaluation (supports both legacy array and normalized object)
+// ============================================================
 function polyEval(c, x) {
+    if (Array.isArray(c)) {
+        let result = 0;
+        for (let i = 0; i < c.length; i++) {
+            result += c[i] * Math.pow(x, c.length - 1 - i);
+        }
+        return result;
+    }
+    // Normalized format { c: [...], xMid, xScale, degree }
+    const xn = (x - c.xMid) / c.xScale;
     let result = 0;
-    for (let i = 0; i < c.length; i++) {
-        result += c[i] * Math.pow(x, c.length - 1 - i);
+    for (let i = 0; i < c.c.length; i++) {
+        result += c.c[i] * Math.pow(xn, c.c.length - 1 - i);
     }
     return result;
 }
 
 // ============================================================
-// Data processing
+// Polynomial fitting (degree-10, normalized to [-1,1])
 // ============================================================
-function processScatterData(raw) {
-    for (const [catName, catRaw] of Object.entries(raw)) {
-        const runValues = catRaw.run;
-        const n = runValues.length;
-        if (!catRaw.coeffs || n < 11) continue;
+function polyfit(xArr, yArr, degree) {
+    if (!degree) degree = POLY_DEGREE;
+    const n = xArr.length;
+    const m = degree + 1;
+    if (n < m) return null;
 
-        fittedData[catName] = {
-            nParticipants: n,
-            runValues,
-            stationValues: catRaw.stations || {},
-            coeffs: catRaw.coeffs
-        };
+    const xMin = xArr[0], xMax = xArr[n - 1];
+    const xMid = (xMin + xMax) / 2;
+    const xScale = (xMax - xMin) / 2 || 1;
+    const xs = xArr.map(v => (v - xMid) / xScale);
+
+    // Precompute sums of powers: powSums[p] = sum(xs[k]^p)
+    const maxPow = 2 * degree;
+    const powSums = new Float64Array(maxPow + 1);
+    const ypow = new Float64Array(m);
+
+    for (let k = 0; k < n; k++) {
+        let xp = 1;
+        for (let p = 0; p <= maxPow; p++) {
+            powSums[p] += xp;
+            if (p <= degree) ypow[degree - p] += yArr[k] * xp;
+            xp *= xs[k];
+        }
+    }
+
+    // Build augmented matrix [XtX | Xty]
+    const aug = [];
+    for (let i = 0; i < m; i++) {
+        aug[i] = new Float64Array(m + 1);
+        for (let j = 0; j < m; j++) aug[i][j] = powSums[2 * degree - i - j];
+        aug[i][m] = ypow[i];
+    }
+
+    // Gaussian elimination with partial pivoting
+    for (let col = 0; col < m; col++) {
+        let maxVal = 0, maxRow = col;
+        for (let row = col; row < m; row++) {
+            if (Math.abs(aug[row][col]) > maxVal) { maxVal = Math.abs(aug[row][col]); maxRow = row; }
+        }
+        if (maxRow !== col) { const tmp = aug[col]; aug[col] = aug[maxRow]; aug[maxRow] = tmp; }
+        const pivot = aug[col][col];
+        if (Math.abs(pivot) < 1e-30) continue;
+        for (let j = col; j <= m; j++) aug[col][j] /= pivot;
+        for (let row = 0; row < m; row++) {
+            if (row === col) continue;
+            const f = aug[row][col];
+            for (let j = col; j <= m; j++) aug[row][j] -= f * aug[col][j];
+        }
+    }
+
+    return { c: Array.from(aug.map(row => row[m])), xMid, xScale, degree };
+}
+
+// ============================================================
+// Event data loading & merging
+// ============================================================
+function eventFileKey(eventName) {
+    return eventName.replace(/\s+/g, '_');
+}
+
+// CSV columns: Location,Continent,Country,Season,Category,Name,IDP,Event_Code,
+//   Running 1, 1000m SkiErg, Running 2, 50m Sled Push, Running 3, 50m Sled Pull,
+//   Running 4, 80m Burpee Broad Jump, Running 5, 1000m Row, Running 6, 200m Farmers Carry,
+//   Running 7, 100m Sandbag Lunges, Running 8, Wall Balls, Roxzone Time, Run Total
+const CSV_STATION_COLS = {
+    9:  '1000m SkiErg',       // col index (0-based)
+    11: '50m Sled Push',
+    13: '50m Sled Pull',
+    15: '80m Burpee Broad Jump',
+    17: '1000m Row',
+    19: '200m Farmers Carry',
+    21: '100m Sandbag Lunges',
+    23: 'Wall Balls',
+    24: 'Roxzone Time',
+};
+const CSV_RUN_TOTAL_COL = 25;
+const CSV_CATEGORY_COL = 4;
+const CSV_NAME_COL = 5;
+
+function parseCSVLine(line) {
+    const cols = [];
+    let cur = '', inQuote = false;
+    for (let j = 0; j < line.length; j++) {
+        const ch = line[j];
+        if (ch === '"') { inQuote = !inQuote; }
+        else if (ch === ',' && !inQuote) { cols.push(cur); cur = ''; }
+        else { cur += ch; }
+    }
+    cols.push(cur);
+    return cols;
+}
+
+const KOREAN_RE = /[\uAC00-\uD7AF]/;
+
+function formatKoreanName(name, isLastFirst) {
+    if (isLastFirst && name.includes(', ')) {
+        // Singles "Last, First": "이, 진희" → "이진희"
+        const [last, first] = name.split(', ', 2);
+        return last + first;
+    }
+    if (!isLastFirst && name.includes(' ')) {
+        // Doubles "First Last": "승준 이" → "이승준"
+        const parts = name.split(' ');
+        const surname = parts.pop();
+        return surname + parts.join('');
+    }
+    return name;
+}
+
+function formatAthleteName(rawName, category) {
+    const isDoubles = category.includes('DOUBLES') || category === 'MIXED';
+    if (isDoubles) {
+        // "A, A, B, B" → dedup → format each
+        const parts = rawName.split(', ').filter(Boolean);
+        const unique = [...new Set(parts)];
+        return unique.map(n => KOREAN_RE.test(n) ? formatKoreanName(n, false) : n).join(' & ');
+    }
+    // Singles: "Last, First" format
+    if (KOREAN_RE.test(rawName)) return formatKoreanName(rawName, true);
+    return rawName;
+}
+
+function parseCSV(text) {
+    const lines = text.replace(/\r/g, '').split('\n');
+    const result = {};
+
+    // Detect optional columns from header
+    const header = parseCSVLine(lines[0].replace(/^\uFEFF/, ''));
+    const natCol = header.findIndex(h => h.trim() === 'Nationality');
+    const ageCol = header.findIndex(h => h.trim() === 'Age_Group');
+    const overallCol = header.findIndex(h => h.trim() === 'Overall_Time_Sec');
+
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const cols = parseCSVLine(line);
+
+        const category = cols[CSV_CATEGORY_COL];
+        if (!category) continue;
+
+        const runTotal = parseFloat(cols[CSV_RUN_TOTAL_COL]);
+        if (isNaN(runTotal) || runTotal <= 0) continue;
+
+        if (!result[category]) {
+            result[category] = { run: [], stations: {}, names: [], nationalities: [], ageGroups: [], overallTimes: [] };
+            for (const st of Object.values(CSV_STATION_COLS)) {
+                result[category].stations[st] = [];
+            }
+        }
+
+        result[category].run.push(runTotal);
+        const rawName = cols[CSV_NAME_COL] || '';
+        result[category].names.push(formatAthleteName(rawName, category));
+        result[category].nationalities.push(natCol >= 0 ? (cols[natCol] || '') : '');
+        let ageRaw = ageCol >= 0 ? (cols[ageCol] || '').trim() : '';
+        // Normalize: MU29/WU29/XU29 → U29, "–" → empty
+        if (/^[MWX]U\d+$/.test(ageRaw)) ageRaw = ageRaw.slice(1);
+        if (ageRaw === '–' || ageRaw === '-') ageRaw = '';
+        result[category].ageGroups.push(ageRaw);
+        result[category].overallTimes.push(overallCol >= 0 ? parseFloat(cols[overallCol]) || 0 : 0);
+        for (const [colIdx, stName] of Object.entries(CSV_STATION_COLS)) {
+            const val = parseFloat(cols[parseInt(colIdx)]);
+            result[category].stations[stName].push(isNaN(val) ? 0 : val);
+        }
+    }
+
+    // Sort each category by run time, keeping station pairing
+    for (const cat of Object.keys(result)) {
+        const n = result[cat].run.length;
+        const indices = Array.from({ length: n }, (_, i) => i);
+        indices.sort((a, b) => result[cat].run[a] - result[cat].run[b]);
+
+        result[cat].run = indices.map(i => result[cat].run[i]);
+        result[cat].names = indices.map(i => result[cat].names[i]);
+        result[cat].nationalities = indices.map(i => result[cat].nationalities[i]);
+        result[cat].ageGroups = indices.map(i => result[cat].ageGroups[i]);
+        result[cat].overallTimes = indices.map(i => result[cat].overallTimes[i]);
+        for (const st of Object.keys(result[cat].stations)) {
+            const orig = result[cat].stations[st];
+            result[cat].stations[st] = indices.map(i => orig[i]);
+        }
+    }
+
+    return result;
+}
+
+async function loadEventData(eventName) {
+    if (eventDataCache[eventName]) return eventDataCache[eventName];
+    try {
+        const resp = await fetch(`data/HYROX_${eventFileKey(eventName)}.csv`);
+        if (!resp.ok) return null;
+        const text = await resp.text();
+        const data = parseCSV(text);
+        eventDataCache[eventName] = data;
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function getFilteredEventNames() {
+    return [...checkedEvents];
+}
+
+function mergeEventData(loadedDataMap) {
+    // loadedDataMap: { eventName: rawJSON, ... }
+    // Build per-athlete records to preserve run-station pairing
+    const perCat = {};
+    for (const [eventName, raw] of Object.entries(loadedDataMap)) {
+        for (const [catName, catRaw] of Object.entries(raw)) {
+            if (!catRaw.run || catRaw.run.length < 5) continue;
+            if (!perCat[catName]) perCat[catName] = [];
+            const stations = catRaw.stations || {};
+            const stNames = Object.keys(stations);
+            for (let i = 0; i < catRaw.run.length; i++) {
+                const a = {
+                    run: catRaw.run[i], stations: {}, event: eventName,
+                    name: (catRaw.names && catRaw.names[i]) || '',
+                    nationality: (catRaw.nationalities && catRaw.nationalities[i]) || '',
+                    ageGroup: (catRaw.ageGroups && catRaw.ageGroups[i]) || '',
+                    overallTime: (catRaw.overallTimes && catRaw.overallTimes[i]) || 0,
+                };
+                for (const st of stNames) {
+                    if (i < stations[st].length) a.stations[st] = stations[st][i];
+                }
+                perCat[catName].push(a);
+            }
+        }
+    }
+    // Sort athletes by run time, then unzip back to arrays
+    const result = {};
+    for (const catName of Object.keys(perCat)) {
+        perCat[catName].sort((a, b) => a.run - b.run);
+        const run = [];
+        const stations = {};
+        for (const athlete of perCat[catName]) {
+            run.push(athlete.run);
+            for (const [st, val] of Object.entries(athlete.stations)) {
+                if (!stations[st]) stations[st] = [];
+                stations[st].push(val);
+            }
+        }
+        result[catName] = { run, stations, athletes: perCat[catName] };
+    }
+    return result;
+}
+
+// Outlier-robust polyfit: fit → remove |residual| > 2σ → refit
+function polyfitRobust(xArr, yArr) {
+    const firstFit = polyfit(xArr, yArr);
+    if (!firstFit) return null;
+
+    // Compute residuals
+    const residuals = yArr.map((y, i) => y - polyEval(firstFit, xArr[i]));
+    const mean = residuals.reduce((s, r) => s + r, 0) / residuals.length;
+    const std = Math.sqrt(residuals.reduce((s, r) => s + (r - mean) ** 2, 0) / residuals.length);
+    if (std < 1e-6) return firstFit;
+
+    // Filter: keep points within 2σ
+    const xClean = [], yClean = [];
+    for (let i = 0; i < yArr.length; i++) {
+        if (Math.abs(residuals[i] - mean) <= 2 * std) {
+            xClean.push(xArr[i]);
+            yClean.push(yArr[i]);
+        }
+    }
+    if (xClean.length < (POLY_DEGREE + 1)) return firstFit;
+    return polyfit(xClean, yClean) || firstFit;
+}
+
+function processAndFit(merged) {
+    fittedData = {};
+    for (const [catName, catData] of Object.entries(merged)) {
+        const runValues = catData.run;
+        const n = runValues.length;
+        if (n < 11) continue;
+
+        // Fit polynomials (outlier-robust)
+        const xArr = runValues.map((_, i) => i + 1);
+        const coeffs = { run: polyfitRobust(xArr, runValues) };
+        if (!coeffs.run) continue;
+
+        const stationValues = catData.stations || {};
+        for (const [stName, stVals] of Object.entries(stationValues)) {
+            if (stVals.length < 11) continue;
+            // x-axis = run rank (station arrays are in run-rank order)
+            const fit = polyfitRobust(xArr.slice(0, stVals.length), stVals);
+            if (fit) coeffs[stName] = fit;
+        }
+
+        // Pre-compute total times for all athletes (for top5 + age group filtering)
+        const allRecords = (catData.athletes || [])
+            .map(a => {
+                const stTotal = Object.values(a.stations).reduce((s, v) => s + v, 0);
+                // Use official overall time if available, otherwise compute from run + stations
+                const total = a.overallTime > 0 ? a.overallTime : (a.run + stTotal);
+                return { event: a.event, total, run: a.run, stTotal, name: a.name, nationality: a.nationality, ageGroup: a.ageGroup };
+            })
+            .filter(a => a.total > 0)
+            .sort((a, b) => a.total - b.total);
+
+        fittedData[catName] = { nParticipants: n, runValues, stationValues, coeffs, allRecords };
     }
 }
 
 // ============================================================
+// Event selector UI
+// ============================================================
+function populateContinentSelect() {
+    const sel = document.getElementById('continentSelect');
+    sel.innerHTML = `<option value="ALL">${t('allContinents')}</option>`;
+    for (const c of CONTINENT_ORDER) {
+        sel.innerHTML += `<option value="${c}">${continentName(c)}</option>`;
+    }
+}
+
+function populateCountrySelect() {
+    const continent = document.getElementById('continentSelect').value;
+    const sel = document.getElementById('countrySelect');
+    const countries = new Set();
+    for (const [_, info] of Object.entries(EVENT_MAP)) {
+        if (continent !== 'ALL' && info.continent !== continent) continue;
+        countries.add(info.country);
+    }
+    sel.innerHTML = `<option value="ALL">${t('allCountries')}</option>`;
+    const sorted = [...countries].sort((a, b) => countryName(a).localeCompare(countryName(b)));
+    for (const code of sorted) {
+        sel.innerHTML += `<option value="${code}">${countryName(code)}</option>`;
+    }
+}
+
+let checkedEvents = new Set(); // currently checked event names
+
+function getAvailableEvents() {
+    const continent = document.getElementById('continentSelect').value;
+    const country = document.getElementById('countrySelect').value;
+    return Object.entries(EVENT_MAP)
+        .filter(([_, info]) => {
+            if (continent !== 'ALL' && info.continent !== continent) return false;
+            if (country !== 'ALL' && info.country !== country) return false;
+            return true;
+        })
+        .map(([name]) => name)
+        .sort((a, b) => b.localeCompare(a));
+}
+
+function populateEventSelect() {
+    const events = getAvailableEvents();
+    const dropdown = document.getElementById('eventDropdown');
+
+    // Remove checked events that are no longer in the filtered list
+    for (const name of [...checkedEvents]) {
+        if (!events.includes(name)) checkedEvents.delete(name);
+    }
+
+    let html = `<label class="multi-select-item multi-select-all">
+        <input type="checkbox" id="eventSelectAll"> ${t('allEvents')} (${events.length})
+    </label>`;
+    for (const name of events) {
+        const checked = checkedEvents.has(name) ? 'checked' : '';
+        html += `<label class="multi-select-item ${checked ? 'checked' : ''}">
+            <input type="checkbox" value="${name}" ${checked}> ${name}
+        </label>`;
+    }
+    dropdown.innerHTML = html;
+    updateEventSelectBtn();
+
+    // Wire up checkboxes
+    const allCb = document.getElementById('eventSelectAll');
+    allCb.checked = checkedEvents.size === events.length;
+    allCb.addEventListener('change', () => {
+        if (allCb.checked) {
+            for (const name of events) checkedEvents.add(name);
+        } else {
+            checkedEvents.clear();
+        }
+        populateEventSelect();
+        onEventSelectionChange();
+    });
+
+    dropdown.querySelectorAll('.multi-select-item:not(.multi-select-all) input').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) {
+                checkedEvents.add(cb.value);
+            } else {
+                checkedEvents.delete(cb.value);
+            }
+            populateEventSelect();
+            onEventSelectionChange();
+        });
+    });
+}
+
+function updateEventSelectBtn() {
+    const btn = document.getElementById('eventSelectBtn');
+    const events = getAvailableEvents();
+    if (checkedEvents.size === 0) {
+        btn.textContent = `— Select Events —`;
+    } else if (checkedEvents.size === events.length) {
+        btn.textContent = `${t('allEvents')} (${events.length})`;
+    } else if (checkedEvents.size === 1) {
+        btn.textContent = [...checkedEvents][0];
+    } else {
+        btn.textContent = `${checkedEvents.size} ${t('events')}`;
+    }
+}
+
+function initEventSelectToggle() {
+    const btn = document.getElementById('eventSelectBtn');
+    const dropdown = document.getElementById('eventDropdown');
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        btn.classList.toggle('open', isOpen);
+    });
+    document.addEventListener('click', (e) => {
+        if (!document.getElementById('eventMultiSelect').contains(e.target)) {
+            dropdown.classList.remove('open');
+            btn.classList.remove('open');
+        }
+    });
+}
+
+async function onEventSelectionChange() {
+    document.getElementById('top5Container').style.display = 'none';
+    const eventNames = getFilteredEventNames();
+    const statusEl = document.getElementById('eventStatus');
+    statusEl.textContent = t('loadingEvents');
+
+    // Load all needed event data
+    const loadPromises = eventNames.map(name => loadEventData(name));
+    const results = await Promise.all(loadPromises);
+
+    const loadedMap = {};
+    let loadedCount = 0;
+    eventNames.forEach((name, i) => {
+        if (results[i]) { loadedMap[name] = results[i]; loadedCount++; }
+    });
+
+    if (loadedCount === 0) {
+        statusEl.innerHTML = `<span style="color:#ff4757">${t('noEventData')}</span>`;
+        fittedData = {};
+        populateCategories();
+        document.getElementById('results').style.display = 'none';
+        return;
+    }
+
+    selectedEvents = Object.keys(loadedMap);
+    const merged = mergeEventData(loadedMap);
+    processAndFit(merged);
+
+    const totalAthletes = Object.values(fittedData).reduce((s, d) => s + d.nParticipants, 0);
+    const eventLabel = loadedCount === 1 ? selectedEvents[0] : `${loadedCount} ${t('events')}`;
+    statusEl.innerHTML = `<span class="event-count">${eventLabel}</span> · ${totalAthletes.toLocaleString()} ${t('totalEntries')}`;
+
+    populateCategories();
+    // Auto-select first available division
+    const first = ALL_DIVISIONS.find(d => fittedData[d]);
+    if (first) {
+        const btn = document.querySelector(`.division-btn[data-cat="${first}"]`);
+        if (btn) selectDivision(btn, first);
+    }
+    document.getElementById('results').style.display = 'none';
+}
+
+
+// ============================================================
 // Utilities
 // ============================================================
+function formatTimeFixed(s) {
+    if (s < 0) s = 0;
+    s = Math.round(s);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+}
+
 function formatTime(s) {
     if (s < 0) s = 0;
     s = Math.round(s);
@@ -205,8 +1199,8 @@ function formatTimeLong(s) {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
-    if (h > 0) return `${h}시간 ${m}분 ${sec.toString().padStart(2, '0')}초`;
-    return `${m}분 ${sec.toString().padStart(2, '0')}초`;
+    if (h > 0) return `${h}${t('hLong')} ${m}${t('mLong')} ${sec.toString().padStart(2, '0')}${t('sLong')}`;
+    return `${m}${t('mLong')} ${sec.toString().padStart(2, '0')}${t('sLong')}`;
 }
 
 function findRankByTime(coefficients, targetTime, maxRank) {
@@ -222,6 +1216,14 @@ function findRankByTime(coefficients, targetTime, maxRank) {
 // ============================================================
 // UI
 // ============================================================
+function isTeamDivision(cat) {
+    return cat.includes('DOUBLES') || cat === 'MIXED';
+}
+
+function unitLabel(cat) {
+    return isTeamDivision(cat) ? t('teams') : t('athletes');
+}
+
 function populateCategories() {
     const grid = document.getElementById('divisionGrid');
     grid.innerHTML = '';
@@ -231,7 +1233,7 @@ function populateCategories() {
         btn.className = 'division-btn';
         btn.dataset.cat = cat;
         const info = fittedData[cat];
-        btn.innerHTML = `${cat}<span class="btn-count">${info ? info.nParticipants + ' athletes' : ''}</span>`;
+        btn.innerHTML = `${cat}<span class="btn-count">${info ? info.nParticipants + ' ' + unitLabel(cat) : ''}</span>`;
         btn.addEventListener('click', () => selectDivision(btn, cat));
         grid.appendChild(btn);
     }
@@ -243,6 +1245,64 @@ function selectDivision(btn, cat) {
     btn.classList.add('active');
     selectedCategory = cat;
     document.getElementById('results').style.display = 'none';
+    document.getElementById('top5Container').style.display = 'none';
+}
+
+function showTop5(cat) {
+    const container = document.getElementById('top5Container');
+    const list = document.getElementById('top5List');
+    const data = fittedData[cat];
+    if (!data || !data.allRecords || data.allRecords.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // Populate age group filter
+    const ageSelect = document.getElementById('ageGroupFilter');
+    const prevAge = ageSelect.value;
+    const ageGroups = [...new Set(data.allRecords.map(r => r.ageGroup).filter(Boolean))];
+    // Sort age groups naturally (numeric ranges first, then others)
+    ageGroups.sort((a, b) => {
+        const na = parseInt(a), nb = parseInt(b);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        if (!isNaN(na)) return -1;
+        if (!isNaN(nb)) return 1;
+        return a.localeCompare(b);
+    });
+    ageSelect.innerHTML = '<option value="ALL">ALL</option>';
+    for (const ag of ageGroups) {
+        ageSelect.innerHTML += `<option value="${ag}">${ag}</option>`;
+    }
+    if (prevAge && ageGroups.includes(prevAge)) ageSelect.value = prevAge;
+
+    ageSelect.onchange = () => renderTop5List(cat);
+    renderTop5List(cat);
+    container.style.display = 'block';
+}
+
+function renderTop5List(cat) {
+    const list = document.getElementById('top5List');
+    const data = fittedData[cat];
+    const ageFilter = document.getElementById('ageGroupFilter').value;
+
+    let records = data.allRecords;
+    if (ageFilter !== 'ALL') {
+        records = records.filter(r => r.ageGroup === ageFilter);
+    }
+    const top5 = records.slice(0, 5);
+
+    if (top5.length === 0) {
+        list.innerHTML = '<div style="color:#555;font-size:0.75rem;text-align:center;padding:8px;">No records</div>';
+        return;
+    }
+    list.innerHTML = top5.map((r, i) => `
+        <div class="top5-row">
+            <span class="top5-rank">${i + 1}</span>
+            <span class="top5-time">${formatTimeFixed(r.total)}</span>
+            <span class="top5-name">${r.name}${r.nationality ? ` <span class="top5-nat">${r.nationality}</span>` : ''}</span>
+            <span class="top5-event">${r.event}</span>
+        </div>
+    `).join('');
 }
 
 function ensureStationCanvases() {
@@ -262,12 +1322,210 @@ function ensureStationCanvases() {
     }
 }
 
+function showImageOverlay(dataUrl, fileName) {
+    const overlay = document.createElement('div');
+    overlay.className = 'img-overlay';
+    overlay.innerHTML = `
+        <button class="close-btn">&times;</button>
+        <img src="${dataUrl}" alt="breakdown">
+        <div class="hint">${t('longPressHint')}</div>
+    `;
+    overlay.querySelector('.close-btn').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+}
+
+// ============================================================
+// Ad interstitial before save
+// ============================================================
+const AD_CONFIG = {
+    imageUrl: 'ad_banner.png',   // 배너 이미지 URL
+    linkUrl: 'https://hooroop.com/product/%ED%9B%84%EB%A3%B9%ED%9B%84%EB%A3%B9-%EC%B9%B4%EC%A0%9C%EC%9D%B8-%EB%8B%A8%EB%B0%B1%EC%A7%88-%EC%89%90%EC%9D%B4%ED%81%AC-%ED%8C%A5%EB%B9%99%EC%88%98%EB%A7%9B-4box/33/category/1/display/2/?icid=MAIN.product_listmain_1',
+    delaySec: 3,           // 스킵 버튼이 나타나기까지 초
+};
+
+function showAdThenSave() {
+    if (!selectedCategory || !fittedData[selectedCategory]) return;
+
+    // Skip ad for non-KR visitors
+    if (visitorCountry !== 'KR') {
+        saveBreakdownAsImage();
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ad-overlay';
+
+    let bannerHtml;
+    if (AD_CONFIG.imageUrl) {
+        bannerHtml = `<div class="ad-banner"${AD_CONFIG.linkUrl ? ` onclick="window.open('${AD_CONFIG.linkUrl}','_blank')"` : ''}><img src="${AD_CONFIG.imageUrl}" alt="ad"></div>`;
+    } else {
+        bannerHtml = `<div class="ad-placeholder">Ad Banner (300×250)</div>`;
+    }
+
+    overlay.innerHTML = `
+        <div class="ad-label">Ad</div>
+        ${bannerHtml}
+        <div class="ad-countdown">${AD_CONFIG.delaySec}s</div>
+        <div class="ad-hint">${AD_CONFIG.delaySec}초 후 이미지 저장이 시작됩니다</div>
+        <div class="ad-hint">클릭하시면 구매 링크로 연결됩니다</div>
+    `;
+    document.body.appendChild(overlay);
+
+    const countdownEl = overlay.querySelector('.ad-countdown');
+    const hintEl = overlay.querySelector('.ad-hint');
+    let remaining = AD_CONFIG.delaySec;
+
+    const timer = setInterval(() => {
+        remaining--;
+        if (remaining > 0) {
+            countdownEl.textContent = remaining + 's';
+        } else {
+            clearInterval(timer);
+            document.body.removeChild(overlay);
+            saveBreakdownAsImage();
+        }
+    }, 1000);
+}
+
+function saveBreakdownAsImage() {
+    if (!selectedCategory) return;
+    const catData = fittedData[selectedCategory];
+    if (!catData) return;
+
+    const totalText = document.getElementById('finalRes').textContent;
+
+    // Fixed-width time format for image: "MM:SS" or "H:MM:SS"
+    function fmtFixed(s) {
+        if (s < 0) s = 0;
+        s = Math.round(s);
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s % 60;
+        const mm = m.toString().padStart(2, '0');
+        const ss = sec.toString().padStart(2, '0');
+        if (h > 0) return `${h}:${mm}:${ss}`;
+        return `${mm}:${ss}`;
+    }
+
+    // Build station rows data
+    const pacePerKm = lastTargetRun / 8;
+    const rows = [];
+    rows.push({ label: t('runTotal'), time: fmtFixed(lastTargetRun), pace: fmtFixed(pacePerKm) + ' /km' });
+    for (const st of STATIONS) {
+        if (!stationCustomTimes[st]) continue;
+        const sec = stationCustomTimes[st];
+        let pace = '';
+        if (st === '1000m SkiErg' || st === '1000m Row') pace = fmtFixed(sec / 2) + ' /500m';
+        else if (st === 'Roxzone Time') pace = fmtFixed(sec / 0.7) + ' /km';
+        rows.push({ label: st === 'Roxzone Time' ? 'Roxzone (0.7km)' : st, time: fmtFixed(sec), pace });
+    }
+
+    // Create offscreen container
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;';
+    document.body.appendChild(wrap);
+
+    const card = document.createElement('div');
+    card.style.cssText = `
+        width: 380px; background: #111; border-radius: 20px; padding: 28px 24px 20px;
+        font-family: -apple-system, 'Pretendard', sans-serif; color: #fff; border: 1px solid #333;
+    `;
+
+    // Header: title + division + total
+    let html = `
+        <div style="text-align:center;margin-bottom:18px;">
+            <div style="font-size:11px;color:#ff4757;font-weight:800;letter-spacing:2px;margin-bottom:8px;">HYROX RACE ESTIMATOR</div>
+            <div style="font-size:12px;color:#666;font-weight:600;letter-spacing:1px;margin-bottom:14px;">${selectedCategory}</div>
+            <div style="font-size:11px;color:#888;font-weight:600;margin-bottom:4px;">${t('estimatedTotal')}</div>
+            <div style="font-size:28px;font-weight:800;color:#fff;letter-spacing:1px;">${totalText}</div>
+        </div>
+        <div style="height:1px;background:#2a2a2a;margin-bottom:14px;"></div>
+    `;
+
+    // Station rows — 3-column table: name | pace | time
+    html += `<table style="width:100%;border-collapse:collapse;">`;
+    for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const isRun = i === 0;
+        const border = i < rows.length - 1 ? 'border-bottom:1px solid #222;' : '';
+        html += `
+        <tr style="${border}">
+            <td style="font-size:12px;color:${isRun ? '#3498db' : '#999'};font-weight:${isRun ? '600' : '400'};padding:9px 0;white-space:nowrap;">${r.label}</td>
+            <td style="text-align:right;padding:9px 4px 9px 0;white-space:nowrap;">
+                ${r.pace ? `<span style="font-size:10px;color:#555;background:#1a1a1a;padding:2px 6px;border-radius:4px;font-family:'Courier New',monospace;">${r.pace}</span>` : ''}
+            </td>
+            <td style="text-align:right;padding:9px 0;white-space:nowrap;width:62px;">
+                <span style="font-size:13px;font-weight:600;color:#fff;font-family:'Courier New',monospace;">${r.time}</span>
+            </td>
+        </tr>`;
+    }
+    html += `</table>`;
+
+    // Footer with Instagram
+    html += `
+        <div style="text-align:center;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:4px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="#444" stroke="none"/></svg>
+            <span style="font-size:9px;color:#444;">@bbaekddong</span>
+        </div>`;
+
+    card.innerHTML = html;
+    wrap.appendChild(card);
+
+    html2canvas(card, { backgroundColor: '#111', scale: 2 }).then(async canvas => {
+        document.body.removeChild(wrap);
+        const fileName = `hyrox_${selectedCategory.replace(/\s+/g, '_')}.png`;
+
+        // Try Web Share API (mobile: share sheet → "Save to Photos")
+        if (navigator.canShare) {
+            try {
+                const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+                const file = new File([blob], fileName, { type: 'image/png' });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file] });
+                    return;
+                }
+            } catch (e) {
+                if (e.name === 'AbortError') return; // user cancelled
+            }
+        }
+
+        // Fallback: show image overlay (long-press to save on mobile)
+        showImageOverlay(canvas.toDataURL('image/png'), fileName);
+    }).catch(() => {
+        document.body.removeChild(wrap);
+    });
+}
+
+function showAnalysisLoading() {
+    const overlay = document.createElement('div');
+    overlay.className = 'ad-overlay';
+    overlay.id = 'analysisLoading';
+
+    let bannerHtml = '';
+    if (visitorCountry === 'KR' && AD_CONFIG.imageUrl) {
+        bannerHtml = `<div class="ad-banner" style="margin-bottom:16px;"${AD_CONFIG.linkUrl ? ` onclick="window.open('${AD_CONFIG.linkUrl}','_blank')"` : ''}><img src="${AD_CONFIG.imageUrl}" alt="ad"></div>`;
+    }
+
+    overlay.innerHTML = `
+        ${bannerHtml}
+        <div style="color:#fff;font-size:1rem;font-weight:600;margin-bottom:8px;">${t('analyzing')}</div>
+        <div style="color:#888;font-size:0.75rem;">${t('analyzingHint')}</div>
+    `;
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
 function runAnalysis() {
     const catName = selectedCategory;
-    if (!catName) return alert('Division을 선택해주세요.');
+    if (!catName) return alert(t('alertDiv'));
     const catData = fittedData[catName];
-    if (!catData) return alert('선택한 카테고리의 데이터가 없습니다.');
+    if (!catData) return alert(t('alertNoData'));
 
+    const overlay = showAnalysisLoading();
+
+    // Defer heavy computation to next frame so overlay renders
+    requestAnimationFrame(() => { setTimeout(() => {
     const m = parseInt(document.getElementById('pMin').value) || 0;
     const s = parseInt(document.getElementById('pSec').value) || 0;
     const paceSeconds = m * 60 + s;
@@ -281,10 +1539,11 @@ function runAnalysis() {
     const clampedPct = Math.max(0, Math.min(100, pct));
 
     // 2. UI 업데이트
-    document.getElementById('rankRes').textContent = `Top ${clampedPct.toFixed(1)}%`;
-    document.getElementById('rankSub').textContent = `~${Math.round(estRank)} / ${nParticipants} participants`;
+    document.getElementById('rankRes').textContent = t('rankFormat').replace('{pct}', clampedPct.toFixed(1));
+    const pUnit = isTeamDivision(catName) ? t('participantsTeam') : t('participants');
+    document.getElementById('rankSub').textContent = `~${Math.round(estRank)} / ${nParticipants} ${pUnit}`;
 
-    // 3. 스테이션별 예상 시간 계산
+    // 3. 스테이션별 예상 시간 계산 + variance
     const stationResults = [];
     let totalStation = 0;
     for (const st of STATIONS) {
@@ -293,7 +1552,19 @@ function runAnalysis() {
         const stRank = estRank * (stN / nParticipants);
         const estTime = Math.max(0, polyEval(coeffs[st], stRank));
         totalStation += estTime;
-        stationResults.push({ name: st, time: estTime, stN, stRank });
+
+        // variance: 전체 참가자 중 최고/최저 기록 대비 차이 (0초 제외)
+        const nonZero = stationValues[st].filter(v => v > 30);
+        const minTime = nonZero.length ? Math.min(...nonZero) : 0;
+        const underHour = stationValues[st].filter(v => v < 3600);
+        const maxTime = underHour.length ? Math.max(...underHour) : Math.max(...stationValues[st]);
+        const fastDelta = Math.max(0, estTime - minTime);
+        const slowDelta = Math.max(0, maxTime - estTime);
+
+        const margin = (maxTime - minTime) * 0.15;
+        const sliderMin = Math.max(0, minTime - margin);
+        const sliderMax = maxTime + margin;
+        stationResults.push({ name: st, time: estTime, stN, stRank, fastDelta, slowDelta, minTime, maxTime, sliderMin, sliderMax });
     }
 
     // 4. 최종 합계 (상단)
@@ -301,28 +1572,62 @@ function runAnalysis() {
     document.getElementById('finalRes').textContent = formatTimeLong(totalTime);
 
     // 5. Station Breakdown 리스트
+    lastTargetRun = targetRun;
+    stationCustomTimes = {};
+    for (const r of stationResults) stationCustomTimes[r.name] = r.time;
+
     let summaryHtml = `
         <div class="breakdown-row">
-            <span class="breakdown-label">Run Total (8km)</span>
-            <span class="breakdown-right"><span class="breakdown-time">${formatTime(targetRun)}</span></span>
+            <div class="breakdown-top">
+                <span class="breakdown-label">${t('runTotal')}</span>
+                <div class="breakdown-main"><span class="breakdown-time">${formatTime(targetRun)}</span></div>
+            </div>
         </div>`;
-    for (const { name, time } of stationResults) {
+    for (const { name, time, minTime, maxTime, sliderMin, sliderMax } of stationResults) {
+        const key = name.replace(/\s+/g, '_');
         let paceHtml = '';
         if (name === '1000m SkiErg' || name === '1000m Row') {
-            paceHtml = `<span class="breakdown-pace">${formatTime(time / 2)} /500m</span>`;
+            paceHtml = `<span class="breakdown-pace" id="pace_${key}">${formatTime(time / 2)} /500m</span>`;
+        } else if (name === 'Roxzone Time') {
+            paceHtml = `<span class="breakdown-pace" id="pace_${key}">${formatTime(time / 0.7)} /km</span>`;
         }
+        const sRange = sliderMax - sliderMin;
+        const pct = sRange > 0 ? ((time - sliderMin) / sRange) * 100 : 50;
+        const recMinPct = sRange > 0 ? ((minTime - sliderMin) / sRange) * 100 : 0;
+        const recMaxPct = sRange > 0 ? ((maxTime - sliderMin) / sRange) * 100 : 100;
         summaryHtml += `
-        <div class="breakdown-row">
-            <span class="breakdown-label">${name}</span>
-            <span class="breakdown-right">${paceHtml}<span class="breakdown-time">${formatTime(time)}</span></span>
+        <div class="breakdown-row" data-station="${name}" data-min="${sliderMin}" data-max="${sliderMax}">
+            <div class="breakdown-top">
+                <span class="breakdown-label">${name}${name === 'Roxzone Time' ? ' (0.7km)' : ''}</span>
+                <div class="breakdown-main">${paceHtml}<span class="breakdown-time" id="time_${key}">${formatTime(time)}</span></div>
+            </div>
+            <div class="range-bar-wrap">
+                <div class="range-bar-track"></div>
+                <div class="range-bar-fill" style="left:0;right:0"></div>
+                <div class="range-bar-record rec-min" style="left:${recMinPct}%"></div>
+                <div class="range-bar-record-label rec-min-label" style="left:${recMinPct}%">${formatTime(minTime)}</div>
+                <div class="range-bar-record rec-max" style="left:${recMaxPct}%"></div>
+                <div class="range-bar-record-label rec-max-label" style="left:${recMaxPct}%">${formatTime(maxTime)}</div>
+                <div class="range-bar-est" style="left:${pct}%"></div>
+                <div class="range-bar-est-label" style="left:${pct}%">est. ${formatTime(time)}</div>
+                <div class="range-bar-marker" id="marker_${key}" style="left:${pct}%"></div>
+            </div>
         </div>`;
     }
     document.getElementById('stationSummary').innerHTML = summaryHtml;
+    initRangeBarDrag();
+
+    // Update translated labels
+    document.getElementById('breakdownLabel').textContent = t('stationBreakdown');
+    document.getElementById('legendBest').textContent = t('best');
+    document.getElementById('legendSlowest').textContent = t('slowest');
+    document.getElementById('totalLabel').textContent = t('estimatedTotal');
 
     // 6. Run Total 차트
     ensureStationCanvases();
+    document.getElementById('runChartLabel').textContent = t('runTotalChart');
     document.getElementById('runChartTime').textContent = formatTime(targetRun);
-    drawScatterChart('chart_run', 'Run Total', coeffs.run, runValues, nParticipants, estRank, targetRun);
+    drawScatterChart('chart_run', t('runTotalChart'), coeffs.run, runValues, nParticipants, estRank, targetRun);
 
     // 7. 스테이션별 차트
     for (const { name, time, stN, stRank } of stationResults) {
@@ -332,7 +1637,124 @@ function runAnalysis() {
     }
 
     document.getElementById('results').style.display = 'block';
+    showTop5(catName);
+
+    // Remove loading overlay
+    overlay.remove();
+
     document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50); });
+}
+
+// ============================================================
+// Range bar drag
+// ============================================================
+function updateTotal() {
+    let total = lastTargetRun;
+    for (const t of Object.values(stationCustomTimes)) total += t;
+    document.getElementById('finalRes').textContent = formatTimeLong(total);
+}
+
+function updateStation(stName, newTime) {
+    const key = stName.replace(/\s+/g, '_');
+    const row = document.querySelector(`.breakdown-row[data-station="${stName}"]`);
+    const minT = parseFloat(row.dataset.min);
+    const maxT = parseFloat(row.dataset.max);
+    newTime = Math.max(minT, Math.min(maxT, newTime));
+
+    stationCustomTimes[stName] = newTime;
+
+    // Update time text (either breakdown-time or stepper label)
+    const timeEl = document.getElementById(`time_${key}`);
+    if (timeEl) timeEl.textContent = formatTime(newTime);
+    const stepperLabel = row.querySelector('.stepper-time');
+    if (stepperLabel) stepperLabel.textContent = formatTime(newTime);
+
+    const pct = (maxT - minT) > 0 ? ((newTime - minT) / (maxT - minT)) * 100 : 50;
+    document.getElementById(`marker_${key}`).style.left = pct + '%';
+    const paceEl = document.getElementById(`pace_${key}`);
+    if (paceEl) {
+        if (stName === 'Roxzone Time') {
+            paceEl.textContent = formatTime(newTime / 0.7) + ' /km';
+        } else {
+            paceEl.textContent = formatTime(newTime / 2) + ' /500m';
+        }
+    }
+    updateTotal();
+}
+
+function initRangeBarDrag() {
+    // Drag handlers
+    document.querySelectorAll('.range-bar-marker').forEach(marker => {
+        const row = marker.closest('.breakdown-row');
+        const stName = row.dataset.station;
+        const minT = parseFloat(row.dataset.min);
+        const maxT = parseFloat(row.dataset.max);
+        const wrap = marker.closest('.range-bar-wrap');
+
+        function onMove(clientX) {
+            const rect = wrap.getBoundingClientRect();
+            let pct = (clientX - rect.left) / rect.width;
+            pct = Math.max(0, Math.min(1, pct));
+            const newTime = minT + pct * (maxT - minT);
+            updateStation(stName, newTime);
+        }
+
+        marker.addEventListener('mousedown', e => {
+            e.preventDefault();
+            const move = ev => onMove(ev.clientX);
+            const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        });
+
+        marker.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const move = ev => onMove(ev.touches[0].clientX);
+            const end = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', end); };
+            document.addEventListener('touchmove', move, { passive: false });
+            document.addEventListener('touchend', end);
+        });
+    });
+
+    // Click to toggle stepper
+    document.querySelectorAll('.breakdown-row[data-station] .breakdown-time').forEach(el => {
+        el.addEventListener('click', () => {
+            const row = el.closest('.breakdown-row');
+            const stName = row.dataset.station;
+            const parent = el.parentNode;
+
+            const stepper = document.createElement('div');
+            stepper.className = 'time-stepper';
+            stepper.innerHTML = `<button type="button" class="step-down">−</button><span class="stepper-time">${formatTime(stationCustomTimes[stName])}</span><button type="button" class="step-up">+</button>`;
+            parent.replaceChild(stepper, el);
+
+            const label = stepper.querySelector('.stepper-time');
+            const step = 1;
+
+            function adjust(delta) {
+                updateStation(stName, stationCustomTimes[stName] + delta);
+                label.textContent = formatTime(stationCustomTimes[stName]);
+            }
+
+            stepper.querySelector('.step-down').addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); adjust(-step); });
+            stepper.querySelector('.step-up').addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); adjust(step); });
+            stepper.querySelector('.step-down').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); adjust(-step); });
+            stepper.querySelector('.step-up').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); adjust(step); });
+
+            setTimeout(() => {
+                document.addEventListener('click', function handler(e) {
+                    if (!stepper.contains(e.target)) {
+                        if (stepper.parentNode) {
+                            el.textContent = formatTime(stationCustomTimes[stName]);
+                            parent.replaceChild(el, stepper);
+                        }
+                        document.removeEventListener('click', handler);
+                    }
+                });
+            }, 0);
+        });
+    });
 }
 
 // ============================================================
@@ -467,23 +1889,43 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 // Init
 // ============================================================
-fetch('scatter_data.json')
-    .then(r => r.json())
-    .then(raw => {
-        scatterData = raw;
-        processScatterData(raw);
-        populateCategories();
-        const first = ALL_DIVISIONS.find(d => fittedData[d]);
-        if (first) {
-            const btn = document.querySelector(`.division-btn[data-cat="${first}"]`);
-            if (btn) selectDivision(btn, first);
-        }
-    })
-    .catch(err => {
-        document.getElementById('divisionGrid').innerHTML =
-            '<div class="loading" style="color:#ff4757">scatter_data.json 로드 실패. 같은 폴더에 파일이 있는지 확인해주세요.</div>';
-        console.error(err);
-    });
+// Wire up cascading selects
+document.getElementById('continentSelect').addEventListener('change', () => {
+    populateCountrySelect();
+    checkedEvents.clear();
+    for (const name of getAvailableEvents()) checkedEvents.add(name);
+    populateEventSelect();
+    onEventSelectionChange();
+});
+document.getElementById('countrySelect').addEventListener('change', () => {
+    checkedEvents.clear();
+    for (const name of getAvailableEvents()) checkedEvents.add(name);
+    populateEventSelect();
+    onEventSelectionChange();
+});
+initEventSelectToggle();
+
+// Initialize selects
+populateContinentSelect();
+populateCountrySelect();
+populateEventSelect();
+
+// Default: ALL continents, ALL countries, ALL events
+document.getElementById('continentSelect').value = 'ALL';
+populateCountrySelect();
+document.getElementById('countrySelect').value = 'ALL';
+checkedEvents.clear();
+for (const name of getAvailableEvents()) checkedEvents.add(name);
+populateEventSelect();
+onEventSelectionChange();
+
+// Visitor counter + geo-based ad control
+let visitorCountry = '';
+fetch('/api/visit').then(r => r.json()).then(d => {
+    document.getElementById('visitorStats').textContent =
+        `Today ${d.daily.toLocaleString()} · Total ${d.total.toLocaleString()}`;
+    visitorCountry = (d.country || '').toUpperCase();
+}).catch(() => {});
 </script>
 </body>
 </html>
