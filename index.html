@@ -1347,8 +1347,8 @@ const AD_CONFIG = {
 function showAdThenSave() {
     if (!selectedCategory || !fittedData[selectedCategory]) return;
 
-    // Skip ad for non-KR visitors
-    if (visitorCountry !== 'KR') {
+    // Skip ad for non-KR visitors (show ad if country unknown)
+    if (visitorCountry && visitorCountry !== 'KR') {
         saveBreakdownAsImage();
         return;
     }
@@ -1503,7 +1503,7 @@ function showAnalysisLoading() {
     overlay.id = 'analysisLoading';
 
     let bannerHtml = '';
-    if (visitorCountry === 'KR' && AD_CONFIG.imageUrl) {
+    if ((!visitorCountry || visitorCountry === 'KR') && AD_CONFIG.imageUrl) {
         bannerHtml = `<div class="ad-banner" style="margin-bottom:16px;"${AD_CONFIG.linkUrl ? ` onclick="window.open('${AD_CONFIG.linkUrl}','_blank')"` : ''}><img src="${AD_CONFIG.imageUrl}" alt="ad"></div>`;
     }
 
@@ -1523,6 +1523,7 @@ function runAnalysis() {
     if (!catData) return alert(t('alertNoData'));
 
     const overlay = showAnalysisLoading();
+    const analysisStart = Date.now();
 
     // Defer heavy computation to next frame so overlay renders
     requestAnimationFrame(() => { setTimeout(() => {
@@ -1636,13 +1637,15 @@ function runAnalysis() {
         drawScatterChart(`chart_${key}`, name, coeffs[name], stationValues[name], stN, stRank, time);
     }
 
-    document.getElementById('results').style.display = 'block';
-    showTop5(catName);
-
-    // Remove loading overlay
-    overlay.remove();
-
-    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Remove loading overlay after minimum 3 seconds, then show results
+    const elapsed = Date.now() - analysisStart;
+    const remaining = Math.max(0, 3000 - elapsed);
+    setTimeout(() => {
+        overlay.remove();
+        document.getElementById('results').style.display = 'block';
+        showTop5(catName);
+        document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, remaining);
     }, 50); });
 }
 
@@ -1925,7 +1928,15 @@ fetch('/api/visit').then(r => r.json()).then(d => {
     document.getElementById('visitorStats').textContent =
         `Today ${d.daily.toLocaleString()} · Total ${d.total.toLocaleString()}`;
     visitorCountry = (d.country || '').toUpperCase();
-}).catch(() => {});
+    // Auto-select language based on country
+    const countryLangMap = { KR: 'ko', JP: 'ja', CN: 'zh', HK: 'zh' };
+    const autoLang = countryLangMap[visitorCountry];
+    if (autoLang && autoLang !== currentLang) applyLang(autoLang);
+}).catch(() => {
+    // Fallback: detect language from browser settings
+    const browserLang = (navigator.language || '').slice(0, 2);
+    if (LANGS[browserLang] && browserLang !== currentLang) applyLang(browserLang);
+});
 </script>
 </body>
 </html>
