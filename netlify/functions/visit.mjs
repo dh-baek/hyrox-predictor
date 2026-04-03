@@ -26,7 +26,11 @@ export default async (req, context) => {
   // Save
   await store.set("stats", JSON.stringify(stats));
 
-  const country = req.headers.get("x-country") || "";
+  // Netlify Functions v2: context.geo.country.code
+  // Fallback: x-country header (Edge Functions)
+  const country = (context && context.geo && context.geo.country && context.geo.country.code)
+    || req.headers.get("x-country")
+    || "";
 
   return new Response(JSON.stringify({ total: stats.total, daily: stats.daily, country }), {
     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },

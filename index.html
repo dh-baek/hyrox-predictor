@@ -141,21 +141,21 @@
         <button class="lang-btn" data-lang="ja" title="日本語">🇯🇵</button>
         <button class="lang-btn" data-lang="zh" title="中文">🇨🇳</button>
     </div>
-    <h1 id="mainTitle">HYROX RACE ESTIMATOR</h1>
-    <p class="subtitle">Pace-Based Performance Analysis</p>
+    <h1 id="mainTitle"></h1>
+    <p class="subtitle"></p>
 
     <details class="how-it-works">
-        <summary>How to use</summary>
+        <summary></summary>
         <div class="how-steps">
-            <div class="how-step">참고할 대회를 선택하세요. 여러 대회를 함께 선택할 수 있습니다.</div>
-            <div class="how-step">참가할 디비전을 선택하세요.</div>
-            <div class="how-step">나의 8km 평균 러닝 페이스를 입력하세요.</div>
-            <div class="how-step">분석하기를 누르면 예상 완주 시간과 스테이션별 기록을 확인할 수 있습니다.</div>
+            <div class="how-step"></div>
+            <div class="how-step"></div>
+            <div class="how-step"></div>
+            <div class="how-step"></div>
         </div>
     </details>
 
     <div class="card">
-        <div class="card-title" id="eventSourceLabel">1. Select events to reference</div>
+        <div class="card-title" id="eventSourceLabel"></div>
         <div class="event-selectors">
             <select id="continentSelect"></select>
             <select id="countrySelect"></select>
@@ -168,14 +168,14 @@
     </div>
 
     <div class="card">
-        <div class="card-title">2. Choose your race division</div>
+        <div class="card-title" id="divisionLabel"></div>
         <div class="division-grid" id="divisionGrid">
             <div class="loading">Loading data...</div>
         </div>
     </div>
 
     <div class="card">
-        <div class="card-title">3. Enter your target running pace</div>
+        <div class="card-title" id="paceLabel"></div>
         <div class="input-group">
             <input type="number" id="pMin" value="5" min="1" max="15">
             <span class="unit">min</span>
@@ -184,7 +184,7 @@
         </div>
     </div>
 
-    <button id="analyzeBtn" onclick="runAnalysis()">ANALYZE</button>
+    <button id="analyzeBtn" onclick="runAnalysis()"></button>
 
     <div class="card" id="top5Container" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -249,7 +249,7 @@
 const LANGS = {
     ko: {
         title: 'HYROX 완주 시간 예측기',
-        subtitle: '페이스 기반 퍼포먼스 분석',
+        subtitle: '러닝 페이스 기반 예측',
         howItWorks: '사용법',
         howSteps: [
             '참고할 대회를 선택하세요. 여러 대회를 함께 선택할 수 있습니다.',
@@ -290,7 +290,7 @@ const LANGS = {
     },
     en: {
         title: 'HYROX RACE ESTIMATOR',
-        subtitle: 'Pace-Based Performance Analysis',
+        subtitle: 'Running Pace-Based Prediction',
         howItWorks: 'How to use',
         howSteps: [
             'Select the events to reference. You can select multiple events.',
@@ -331,7 +331,7 @@ const LANGS = {
     },
     ja: {
         title: 'HYROX 完走タイム予測',
-        subtitle: 'ペースベースのパフォーマンス分析',
+        subtitle: 'ランニングペースベースの予測',
         howItWorks: '使い方',
         howSteps: [
             '参考にする大会を選択します。複数選択も可能です。',
@@ -372,7 +372,7 @@ const LANGS = {
     },
     zh: {
         title: 'HYROX 完赛时间预测',
-        subtitle: '基于配速的成绩预测分析',
+        subtitle: '基于跑步配速的预测',
         howItWorks: '使用方法',
         howSteps: [
             '选择要参考的赛事，可以同时选择多个赛事。',
@@ -439,10 +439,8 @@ function applyLang(lang) {
     populateEventSelect();
     onEventSelectionChange();
 
-    const cardTitles = document.querySelectorAll('.card-title');
-    // cardTitles[0] = Event Source, cardTitles[1] = Division, cardTitles[2] = Pace, cardTitles[3] = Station Breakdown (if results visible)
-    if (cardTitles[1]) cardTitles[1].textContent = t('division');
-    if (cardTitles[2]) cardTitles[2].textContent = t('pace');
+    document.getElementById('divisionLabel').textContent = t('division');
+    document.getElementById('paceLabel').textContent = t('pace');
 
     document.querySelectorAll('.unit').forEach((el, i) => el.textContent = i === 0 ? t('min') : t('sec'));
     document.getElementById('analyzeBtn').textContent = t('analyze');
@@ -1908,6 +1906,9 @@ document.getElementById('countrySelect').addEventListener('change', () => {
 });
 initEventSelectToggle();
 
+// Apply initial language to fill all UI text
+applyLang(currentLang);
+
 // Initialize selects
 populateContinentSelect();
 populateCountrySelect();
@@ -1922,20 +1923,38 @@ for (const name of getAvailableEvents()) checkedEvents.add(name);
 populateEventSelect();
 onEventSelectionChange();
 
-// Visitor counter + geo-based ad control
+// Visitor counter + geo-based language/ad control
 let visitorCountry = '';
+const countryLangMap = { KR: 'ko', JP: 'ja', CN: 'zh' };
+
+function applyCountryLang() {
+    const autoLang = countryLangMap[visitorCountry];
+    if (autoLang && autoLang !== currentLang) applyLang(autoLang);
+}
+
+function detectCountryFallback() {
+    // Fallback: free IP geolocation API (works on GitHub Pages etc.)
+    fetch('https://ipapi.co/json/').then(r => r.json()).then(d => {
+        visitorCountry = (d.country_code || '').toUpperCase();
+        applyCountryLang();
+    }).catch(() => {
+        // Last resort: browser language
+        const browserLang = (navigator.language || '').slice(0, 2);
+        if (LANGS[browserLang] && browserLang !== currentLang) applyLang(browserLang);
+    });
+}
+
 fetch('/api/visit').then(r => r.json()).then(d => {
     document.getElementById('visitorStats').textContent =
         `Today ${d.daily.toLocaleString()} · Total ${d.total.toLocaleString()}`;
     visitorCountry = (d.country || '').toUpperCase();
-    // Auto-select language based on country
-    const countryLangMap = { KR: 'ko', JP: 'ja', CN: 'zh', HK: 'zh' };
-    const autoLang = countryLangMap[visitorCountry];
-    if (autoLang && autoLang !== currentLang) applyLang(autoLang);
+    if (visitorCountry) {
+        applyCountryLang();
+    } else {
+        detectCountryFallback();
+    }
 }).catch(() => {
-    // Fallback: detect language from browser settings
-    const browserLang = (navigator.language || '').slice(0, 2);
-    if (LANGS[browserLang] && browserLang !== currentLang) applyLang(browserLang);
+    detectCountryFallback();
 });
 </script>
 </body>
